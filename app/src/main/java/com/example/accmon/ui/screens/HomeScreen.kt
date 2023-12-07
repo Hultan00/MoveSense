@@ -115,7 +115,7 @@ fun HomeScreen(
                         },
                         colors = ButtonDefaults.buttonColors(
                             contentColor = if (!recordWithBlueToothDevice) AndroidGreen else Color.LightGray,
-                            containerColor = Color.DarkGray
+                            containerColor = if (!recordWithBlueToothDevice) Color.DarkGray else Color.Gray
                         ),
                         modifier = Modifier
                             .border(1.dp, ThemeBlack, shape = RoundedCornerShape(10.dp))
@@ -136,7 +136,7 @@ fun HomeScreen(
                         },
                         colors = ButtonDefaults.buttonColors(
                             contentColor = if (recordWithBlueToothDevice) BluetoothBlue else Color.LightGray,
-                            containerColor = Color.DarkGray
+                            containerColor = if (recordWithBlueToothDevice) Color.DarkGray else Color.Gray
                         ),
                         modifier = Modifier
                             .border(1.dp, ThemeBlack, shape = RoundedCornerShape(10.dp))
@@ -154,7 +154,7 @@ fun HomeScreen(
                 }
                 Button(
                     onClick = {
-                        vm.setRecordWithBluetoothDevice(true)
+
                     },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color.DarkGray
