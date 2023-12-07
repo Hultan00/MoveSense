@@ -53,7 +53,7 @@ fun HomeScreen(
             .fillMaxSize()
             .background(ThemeBlue)
             .padding(0.dp),
-        verticalArrangement = Arrangement.Top,
+        verticalArrangement = Arrangement.Bottom,
         horizontalAlignment = Alignment.CenterHorizontally
     ){
         Column (
