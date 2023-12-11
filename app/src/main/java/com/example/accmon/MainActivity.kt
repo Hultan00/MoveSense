@@ -1,8 +1,7 @@
 package com.example.accmon
 
+import BluetoothDeviceScanner
 import android.app.Activity
-import android.bluetooth.BluetoothAdapter
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -17,14 +16,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.app.ActivityCompat
-import androidx.core.app.ActivityCompat.startActivityForResult
 import androidx.core.content.ContextCompat
-import com.example.accmon.ui.theme.AccMonTheme
-import com.example.accmon.ui.viewmodels.MoveSenseVM
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.accmon.ui.screens.HomeScreen
+import com.example.accmon.ui.theme.AccMonTheme
+import com.example.accmon.ui.viewmodels.MoveSenseVM
 
 class MainActivity : ComponentActivity() {
 

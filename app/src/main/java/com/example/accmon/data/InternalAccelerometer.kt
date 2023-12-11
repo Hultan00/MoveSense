@@ -5,14 +5,18 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.os.Build
+import androidx.annotation.RequiresApi
+import java.time.LocalDateTime
+import java.time.temporal.ChronoUnit
 
-class Accelerometer(private val context: Context) : SensorEventListener {
+class InternalAccelerometer(private val context: Context) : SensorEventListener {
 
     private var sensorManager: SensorManager? = null
     private var accelerometerSensor: Sensor? = null
     private var isListening: Boolean = false
 
-    private var onSensorChangedCallback: ((Float, Float, Float) -> Unit)? = null
+    private var onSensorChangedCallback: ((Float, Float, Float, Long) -> Unit)? = null
 
     init {
         initializeSensor()
@@ -39,18 +43,28 @@ class Accelerometer(private val context: Context) : SensorEventListener {
         isListening = false
     }
 
-    fun setOnSensorChangedCallback(callback: (Float, Float, Float) -> Unit) {
+    fun setOnSensorChangedCallback(callback: (Float, Float, Float, Long) -> Unit) {
         onSensorChangedCallback = callback
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun onSensorChanged(event: SensorEvent) {
         if (event.sensor.type == Sensor.TYPE_ACCELEROMETER) {
             val x = event.values[0]
             val y = event.values[1]
             val z = event.values[2]
 
-            // Notify the callback with the accelerometer values
-            onSensorChangedCallback?.invoke(x, y, z)
+            // Get the current LocalDateTime
+            val localDateTime = LocalDateTime.now()
+
+            // Set the epoch date to 2000-01-01
+            val epochDateTime = LocalDateTime.of(2000, 1, 1, 0, 0, 0)
+
+            // Calculate the nanoseconds since the epoch
+            val nanoseconds = ChronoUnit.NANOS.between(epochDateTime, localDateTime)
+
+            // Notify the callback with the gyroscope values and time
+            onSensorChangedCallback?.invoke(x, y, z, nanoseconds)
         }
     }
 

@@ -2,7 +2,6 @@ import android.Manifest
 import android.app.Activity
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
-import android.bluetooth.BluetoothSocket
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -15,8 +14,6 @@ import com.polar.sdk.api.PolarBleApi
 import com.polar.sdk.api.PolarBleApiCallback
 import com.polar.sdk.api.PolarBleApiDefaultImpl
 import com.polar.sdk.api.model.PolarDeviceInfo
-import kotlinx.coroutines.delay
-import java.io.IOException
 import java.util.UUID
 
 class BluetoothDeviceScanner(
@@ -90,6 +87,9 @@ class BluetoothDeviceScanner(
         })
     }
 
+    fun isBluetoothEnabled(): Boolean? {
+        return bluetoothAdapter?.isEnabled
+    }
 
     private fun registerDiscoveryReceiver() {
         val filter = IntentFilter(BluetoothDevice.ACTION_FOUND)

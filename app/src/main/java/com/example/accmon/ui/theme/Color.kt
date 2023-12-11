@@ -12,6 +12,7 @@ val Pink40 = Color(0xFF7D5260)
 
 val ThemeBlue = Color(red = 0, green = 102, blue = 139, alpha = 255)
 val StyleBlue = Color(red = 37, green = 150, blue = 190, alpha = 255)
+val StylePink = Color(180,0,102,255)
 val BlinkBlue = Color(red = 37, green = 150, blue = 190, alpha = 200)
 val StandbyBlue = Color(red = 37, green = 150, blue = 190, alpha = 50)
 val ThemeBlack = Color(30,31,34,255)

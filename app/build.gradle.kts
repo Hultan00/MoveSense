@@ -70,7 +70,12 @@ dependencies {
     // Navigation (2.4.0 because I target API 33)
     implementation("androidx.navigation:navigation-compose:2.7.5")
 
+    // Polar (5.5.0)
     implementation ("com.github.polarofficial:polar-ble-sdk:5.5.0")
     implementation ("io.reactivex.rxjava3:rxjava:3.1.6")
     implementation ("io.reactivex.rxjava3:rxandroid:3.0.2")
+
+    // Graph
+    implementation ("co.yml:ycharts:2.1.0")
+
 }

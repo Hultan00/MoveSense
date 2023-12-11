@@ -1,8 +1,7 @@
 package com.example.accmon.ui.viewmodels
 
+import Acc
 import BluetoothDeviceScanner
-import android.app.Activity
-import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.content.Context
 import android.os.Build
@@ -11,8 +10,10 @@ import androidx.annotation.RequiresApi
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.accmon.data.Accelerometer
 import com.example.accmon.data.ConnectedDevice
+import com.example.accmon.data.Gyro
+import com.example.accmon.data.InternalAccelerometer
+import com.example.accmon.data.InternalGyroscope
 import com.polar.sdk.api.model.PolarDeviceInfo
 import com.polar.sdk.api.model.PolarSensorSetting
 import io.reactivex.rxjava3.disposables.Disposable
@@ -21,11 +22,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
+import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
-import java.util.Date
+import java.time.temporal.ChronoUnit
 
 interface MoveSenseViewModel {
     val recordWithBluetoothDevice: StateFlow<Boolean>
@@ -38,9 +39,13 @@ interface MoveSenseViewModel {
 
     val foundPolarDevices: StateFlow<ArrayList<PolarDeviceInfo>>
 
+    val polarAccValues: StateFlow<ArrayList<Acc>>
+    val polarGyroValues: StateFlow<ArrayList<Gyro>>
+
     fun setRecordWithBluetoothDevice(boolean: Boolean)
     fun setIsRecording(boolean: Boolean)
-    fun getAccelerometer(): Accelerometer
+    fun getAccelerometer(): InternalAccelerometer
+    fun getGyroscope(): InternalGyroscope
     fun getBluetoothScanner(): BluetoothDeviceScanner
     fun getFoundBluetoothDevices()
     fun getPolarDevices()
@@ -59,7 +64,9 @@ class MoveSenseVM (
     override val isRecording: StateFlow<Boolean>
         get() = _isRecording
 
-    private val accelerometer = Accelerometer(context)
+    private val accelerometer = InternalAccelerometer(context)
+
+    private val gyroscope = InternalGyroscope(context)
 
     private val bluetoothDeviceScanner = BluetoothDeviceScanner(context)
 
@@ -83,6 +90,14 @@ class MoveSenseVM (
     override val connectedDevice: StateFlow<ConnectedDevice>
         get() = _connectedDevice
 
+    private val _polarAccValues = MutableStateFlow<ArrayList<Acc>>(ArrayList())
+    override val polarAccValues: StateFlow<ArrayList<Acc>>
+        get() = _polarAccValues
+
+    private val _polarGyroValues = MutableStateFlow<ArrayList<Gyro>>(ArrayList())
+    override val polarGyroValues: StateFlow<ArrayList<Gyro>>
+        get() = _polarGyroValues
+
     private var job: Job? = null  // coroutine job for the game event
 
     override fun setRecordWithBluetoothDevice(boolean: Boolean){
@@ -92,15 +107,23 @@ class MoveSenseVM (
     override fun setIsRecording(boolean: Boolean){
         _isRecording.value = boolean
 
-        if (boolean){
-            accelerometer.startListening()
-        }else{
-            accelerometer.stopListening()
+        if (!recordWithBluetoothDevice.value) {
+            if (boolean) {
+                accelerometer.startListening()
+                gyroscope.startListening()
+            } else {
+                accelerometer.stopListening()
+                gyroscope.stopListening()
+            }
         }
     }
 
-    override fun getAccelerometer(): Accelerometer {
+    override fun getAccelerometer(): InternalAccelerometer {
         return accelerometer
+    }
+
+    override fun getGyroscope(): InternalGyroscope {
+        return gyroscope
     }
 
     override fun getBluetoothScanner(): BluetoothDeviceScanner {
@@ -206,29 +229,103 @@ class MoveSenseVM (
     }
 
     private var accDisposable: Disposable? = null
+    private var gyroDisposable: Disposable? = null
+
+    fun prepareGraphs(){
+        _polarAccValues.value.clear()
+        _polarGyroValues.value.clear()
+
+        _polarAccValues.value.add(Acc(8000,8000,8000, 90.0, 180.0, -2))
+        for (i in 0 until 9){
+            _polarAccValues.value.add(Acc(8000,8000,8000,90.0, 180.0, -2))
+        }
+        _polarAccValues.value.add(Acc(-8000,-8000,-8000,-90.0, -180.0, -1))
+
+        _polarGyroValues.value.add(Gyro(2160F,2160F,2160F, -2))
+        for (i in 0 until 9){
+            _polarGyroValues.value.add(Gyro(2160F,2160F,2160F, -2))
+        }
+        _polarGyroValues.value.add(Gyro(-2160F,-2160F,-2160F, -1))
+    }
+
+    fun getCurrentNanoTime(): Long{
+        // Get the current LocalDateTime
+        val localDateTime = LocalDateTime.now()
+
+        // Set the epoch date to 2000-01-01
+        val epochDateTime = LocalDateTime.of(2000, 1, 1, 0, 0, 0)
+
+        // Calculate the nanoseconds since the epoch
+        val nanoseconds = ChronoUnit.NANOS.between(epochDateTime, localDateTime)
+
+        return nanoseconds
+    }
 
     @RequiresApi(Build.VERSION_CODES.O)
-    fun startAccStreaming(settings: Map<PolarSensorSetting.SettingType, Int>) {
+    fun startAccStreaming(settings: Map<PolarSensorSetting.SettingType, Int>, settingsGyro: Map<PolarSensorSetting.SettingType, Int>) {
         accDisposable?.dispose() // Dispose of the previous disposable if it exists
+        gyroDisposable?.dispose() // Dispose of the previous disposable if it exists
+
+        var firstSampleTimestamp: Long = 0
+        var firstSampleRead = false
+
+        prepareGraphs()
 
         if (_recordWithBluetoothDevice.value && _isRecording.value) {
             _connectedDevice.value.polarVariant?.let { polarVariant ->
+
                 val polarSensorSetting = PolarSensorSetting(settings)
+
                 accDisposable = bluetoothDeviceScanner.api
                     .startAccStreaming(polarVariant.deviceId, polarSensorSetting)
                     .subscribe(
                         { accelerometerData ->
+                            Log.d("Accelerometer", "Sample $accelerometerData")
                             // This block is executed for each emitted accelerometer data
                             // You can access accelerometer values from 'accelerometerData' here
                             accelerometerData.samples.forEachIndexed { index, sample ->
-                                val epochStart = ZonedDateTime.of(2000, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)
+                                if ((index == 0) && !firstSampleRead) {
+                                    // Save the timestamp of the first sample
+                                    firstSampleTimestamp = sample.timeStamp
+                                    firstSampleRead = true
+                                }
 
+                                val epochStart = ZonedDateTime.of(2000, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)
                                 val dateTime = epochStart.plusNanos(sample.timeStamp)
                                 val formattedDate = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS").format(dateTime)
+                                val timeDifferenceNanos = sample.timeStamp - firstSampleTimestamp
+                                val timeDifferenceMillis = timeDifferenceNanos / 1_000_000
 
-                                Log.d("Accelerometer", "Sample $index: Time: $formattedDate X=${sample.x} Y=${sample.y} Z=${sample.z}")
+                                Log.d(
+                                    "Accelerometer",
+                                    "Sample $index: Time: $formattedDate X=${sample.x} Y=${sample.y} Z=${sample.z}"
+                                )
+                                Log.d("Accelerometer", "Sample $index: Time: $timeDifferenceMillis ms")
+
+                                synchronized(_polarAccValues.value) {
+                                    if (_polarAccValues.value.size == 11){
+                                        _polarAccValues.value.add(
+                                            Acc(
+                                                sample.x,
+                                                sample.y,
+                                                sample.z,
+                                                timeDifferenceMillis
+                                            )
+                                        )
+                                    }else{
+                                        val lastAcc = _polarAccValues.value.last()
+                                        _polarAccValues.value.add(
+                                            Acc(
+                                                sample.x,
+                                                sample.y,
+                                                sample.z,
+                                                timeDifferenceMillis,
+                                                lastAcc
+                                            )
+                                        )
+                                    }
+                                }
                             }
-
                         },
                         { error ->
                             // Handle error if any
@@ -239,12 +336,62 @@ class MoveSenseVM (
                             Log.d("Accelerometer", "Accelerometer data stream completed")
                         }
                     )
+
+                val polarSensorSettingGyro = PolarSensorSetting(settingsGyro)
+
+                gyroDisposable = bluetoothDeviceScanner.api
+                    .startGyroStreaming(polarVariant.deviceId, polarSensorSettingGyro)
+                    .subscribe(
+                        { gyroData ->
+                            // This block is executed for each emitted accelerometer data
+                            // You can access accelerometer values from 'accelerometerData' here
+                            gyroData.samples.forEachIndexed { index, sample ->
+                                if ((index == 0) && !firstSampleRead) {
+                                    // Save the timestamp of the first sample
+                                    firstSampleTimestamp = sample.timeStamp
+                                    firstSampleRead = true
+                                }
+
+                                val epochStart = ZonedDateTime.of(2000, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)
+                                val dateTime = epochStart.plusNanos(sample.timeStamp)
+                                val formattedDate = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS").format(dateTime)
+                                val timeDifferenceNanos = sample.timeStamp - firstSampleTimestamp
+                                val timeDifferenceMillis = timeDifferenceNanos / 1_000_000
+
+                                Log.d(
+                                    "Gyro", "Sample $index: Time: $formattedDate X=${sample.x} Y=${sample.y} Z=${sample.z}"
+                                )
+                                Log.d("Gyro", "Sample $index: Time: $timeDifferenceMillis ms")
+
+                                synchronized(_polarGyroValues.value) {
+                                    _polarGyroValues.value.add(
+                                        Gyro(
+                                            sample.x,
+                                            sample.y,
+                                            sample.z,
+                                            timeDifferenceMillis
+                                        )
+                                    )
+                                }
+                            }
+                        },
+                        { error ->
+                            // Handle error if any
+                            Log.e("Gyro", "Error receiving gyro data", error)
+                        },
+                        {
+                            // This block is executed when the Flowable completes
+                            Log.d("Gyro", "Gyro data stream completed")
+                        }
+                    )
             }
         }
+
     }
 
     fun stopAccStreaming() {
         accDisposable?.dispose() // Dispose of the disposable to stop the streaming
+        gyroDisposable?.dispose()
     }
 
 
