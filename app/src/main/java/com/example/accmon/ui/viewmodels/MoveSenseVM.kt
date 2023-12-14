@@ -286,7 +286,7 @@ class MoveSenseVM (
     }
 
 
-    fun startAccStreaming(settings: Map<PolarSensorSetting.SettingType, Int>, settingsGyro: Map<PolarSensorSetting.SettingType, Int>) {
+    fun startDataStreaming(settings: Map<PolarSensorSetting.SettingType, Int>, settingsGyro: Map<PolarSensorSetting.SettingType, Int>) {
         accDisposable?.dispose() // Dispose of the previous disposable if it exists
         gyroDisposable?.dispose() // Dispose of the previous disposable if it exists
 
@@ -295,6 +295,77 @@ class MoveSenseVM (
 
         if (_recordWithBluetoothDevice.value && _isRecording.value) {
             _connectedDevice.value.polarVariant?.let { polarVariant ->
+
+                val polarSensorSettingGyro = PolarSensorSetting(settingsGyro)
+
+                gyroDisposable = bluetoothDeviceScanner.api
+                    .startGyroStreaming(polarVariant.deviceId, polarSensorSettingGyro)
+                    .subscribe(
+                        { gyroData ->
+                            if (!polarAccValues.value.isEmpty()) {
+                                // This block is executed for each emitted accelerometer data
+                                // You can access accelerometer values from 'accelerometerData' here
+                                gyroData.samples.forEachIndexed { index, sample ->
+                                    if ((index == 0) && !firstSampleRead) {
+                                        // Save the timestamp of the first sample
+                                        firstSampleTimestamp = sample.timeStamp
+                                        firstSampleRead = true
+                                    }
+
+                                    val epochStart =
+                                        ZonedDateTime.of(2000, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)
+                                    val dateTime = epochStart.plusNanos(sample.timeStamp)
+                                    val formattedDate =
+                                        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")
+                                            .format(dateTime)
+                                    val timeDifferenceNanos =
+                                        sample.timeStamp - firstSampleTimestamp
+                                    val timeDifferenceMillis = timeDifferenceNanos / 1_000_000
+
+                                    Log.d(
+                                        "Gyro",
+                                        "Sample $index: Time: $formattedDate X=${sample.x} Y=${sample.y} Z=${sample.z}"
+                                    )
+                                    Log.d("Gyro", "Sample $index: Time: $timeDifferenceMillis ms")
+
+                                    synchronized(_polarGyroValues.value) {
+                                        if (_polarGyroValues.value.isEmpty()) {
+                                            _polarGyroValues.value.add(
+                                                Gyro(
+                                                    sample.x,
+                                                    sample.y,
+                                                    sample.z,
+                                                    _polarAccValues.value.get(0).p,
+                                                    0F,
+                                                    0F,
+                                                    timeDifferenceMillis
+                                                )
+                                            )
+                                        } else {
+                                            val lastGyro = _polarGyroValues.value.last()
+                                            _polarGyroValues.value.add(
+                                                Gyro(
+                                                    sample.x,
+                                                    sample.y,
+                                                    sample.z,
+                                                    timeDifferenceMillis,
+                                                    lastGyro
+                                                )
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        { error ->
+                            // Handle error if any
+                            Log.e("Gyro", "Error receiving gyro data", error)
+                        },
+                        {
+                            // This block is executed when the Flowable completes
+                            Log.d("Gyro", "Gyro data stream completed")
+                        }
+                    )
 
                 val polarSensorSetting = PolarSensorSetting(settings)
 
@@ -356,70 +427,6 @@ class MoveSenseVM (
                         {
                             // This block is executed when the Flowable completes
                             Log.d("Accelerometer", "Accelerometer data stream completed")
-                        }
-                    )
-
-                val polarSensorSettingGyro = PolarSensorSetting(settingsGyro)
-
-                gyroDisposable = bluetoothDeviceScanner.api
-                    .startGyroStreaming(polarVariant.deviceId, polarSensorSettingGyro)
-                    .subscribe(
-                        { gyroData ->
-                            // This block is executed for each emitted accelerometer data
-                            // You can access accelerometer values from 'accelerometerData' here
-                            gyroData.samples.forEachIndexed { index, sample ->
-                                if ((index == 0) && !firstSampleRead) {
-                                    // Save the timestamp of the first sample
-                                    firstSampleTimestamp = sample.timeStamp
-                                    firstSampleRead = true
-                                }
-
-                                val epochStart = ZonedDateTime.of(2000, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)
-                                val dateTime = epochStart.plusNanos(sample.timeStamp)
-                                val formattedDate = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS").format(dateTime)
-                                val timeDifferenceNanos = sample.timeStamp - firstSampleTimestamp
-                                val timeDifferenceMillis = timeDifferenceNanos / 1_000_000
-
-                                Log.d(
-                                    "Gyro", "Sample $index: Time: $formattedDate X=${sample.x} Y=${sample.y} Z=${sample.z}"
-                                )
-                                Log.d("Gyro", "Sample $index: Time: $timeDifferenceMillis ms")
-
-                                synchronized(_polarGyroValues.value) {
-                                    if (_polarGyroValues.value.isEmpty()) {
-                                        _polarGyroValues.value.add(
-                                            Gyro(
-                                                sample.x,
-                                                sample.y,
-                                                sample.z,
-                                                _polarAccValues.value.get(0).p,
-                                                0F,
-                                                0F,
-                                                timeDifferenceMillis
-                                            )
-                                        )
-                                    }else{
-                                        val lastGyro = _polarGyroValues.value.last()
-                                        _polarGyroValues.value.add(
-                                            Gyro(
-                                                sample.x,
-                                                sample.y,
-                                                sample.z,
-                                                timeDifferenceMillis,
-                                                lastGyro
-                                            )
-                                        )
-                                    }
-                                }
-                            }
-                        },
-                        { error ->
-                            // Handle error if any
-                            Log.e("Gyro", "Error receiving gyro data", error)
-                        },
-                        {
-                            // This block is executed when the Flowable completes
-                            Log.d("Gyro", "Gyro data stream completed")
                         }
                     )
             }

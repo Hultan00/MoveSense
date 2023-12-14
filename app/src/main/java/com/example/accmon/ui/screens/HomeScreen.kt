@@ -3,11 +3,8 @@ package com.example.accmon.ui.screens
 import Acc
 import DataExport
 import android.bluetooth.BluetoothDevice
-import android.graphics.Paint
 import android.graphics.Typeface
-import android.os.Build
 import android.util.Log
-import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -44,12 +41,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -898,7 +892,7 @@ fun HomeScreen(
                             vm.prepareGraphs()
                             vm.setIsRecording(true)
                             if (recordWithBlueToothDevice){
-                                vm.startAccStreaming(settings, settingsGyro)
+                                vm.startDataStreaming(settings, settingsGyro)
                             }
                         }
                     },
@@ -1298,7 +1292,7 @@ fun AccGraphRoll(polarAccValues: ArrayList<Acc>, recordWithBluetoothDevice: Bool
             pointsData.add(Point(-0F, -180F))
             for (i in 0 until polarAccValues.size step indexIterate) {
                 val acc = polarAccValues[i]
-                pointsData.add(Point((acc.ms / 1000.0).toFloat(), acc.r.toFloat()))
+                pointsData.add(Point((acc.ms / 1000.0).toFloat(), acc.r))
             }
 
             val xAxisData = AxisData.Builder()
@@ -1382,7 +1376,7 @@ fun GyroGraphX(polarGyroValues: ArrayList<Gyro>, recordWithBluetoothDevice: Bool
         synchronized(polarGyroValues) {
             var pointsData = ArrayList<Point>()
             for (index in 0 until indexIterate){
-                pointsData.add(Point(-0F, 2160F))
+                pointsData.add(Point(0F, 2160F))
             }
             pointsData.add(Point(-0F, -2160F))
             for (i in 0 until polarGyroValues.size step indexIterate) {
@@ -1471,7 +1465,7 @@ fun GyroGraphY(polarGyroValues: ArrayList<Gyro>, recordWithBluetoothDevice: Bool
         synchronized(polarGyroValues) {
             var pointsData = ArrayList<Point>()
             for (index in 0 until indexIterate){
-                pointsData.add(Point(-0F, 2160F))
+                pointsData.add(Point(0F, 2160F))
             }
             pointsData.add(Point(-0F, -2160F))
             for (i in 0 until polarGyroValues.size step indexIterate) {
@@ -1560,7 +1554,7 @@ fun GyroGraphZ(polarGyroValues: ArrayList<Gyro>, recordWithBluetoothDevice: Bool
         synchronized(polarGyroValues) {
             var pointsData = ArrayList<Point>()
             for (index in 0 until indexIterate){
-                pointsData.add(Point(-0F, 2160F))
+                pointsData.add(Point(0F, 2160F))
             }
             pointsData.add(Point(-0F, -2160F))
             for (i in 0 until polarGyroValues.size step indexIterate) {
