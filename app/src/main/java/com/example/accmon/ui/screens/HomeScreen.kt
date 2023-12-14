@@ -499,8 +499,8 @@ fun HomeScreen(
                                         Button(
                                             onClick = {
                                                 hasExportedData = true
-                                                DataExport.exportToCsv(DataExport.formatFusionData(polarFusionValues), DataExport.getDefaultExportFilePath("PitchSensorFusionData-${DataExport.getCurrentDateTime()}.csv"))
-                                                DataExport.exportToCsv(DataExport.formatAccData(polarAccValues), DataExport.getDefaultExportFilePath("PitchAccData-${DataExport.getCurrentDateTime()}.csv"))
+                                                DataExport.exportToCsv(DataExport.formatFusionData(polarFusionValues), DataExport.getDefaultExportFilePath("${DataExport.getCurrentDateTime()}-ALG2.csv"))
+                                                DataExport.exportToCsv(DataExport.formatAccData(polarAccValues), DataExport.getDefaultExportFilePath("${DataExport.getCurrentDateTime()}-ALG1.csv"))
                                             },
                                             colors = ButtonDefaults.buttonColors(
                                                 containerColor = Color.DarkGray,
