@@ -499,8 +499,12 @@ fun HomeScreen(
                                         Button(
                                             onClick = {
                                                 hasExportedData = true
-                                                DataExport.exportToCsv(DataExport.formatFusionData(polarFusionValues), DataExport.getDefaultExportFilePath("${DataExport.getCurrentDateTime()}-ALG2.csv"))
-                                                DataExport.exportToCsv(DataExport.formatAccData(polarAccValues), DataExport.getDefaultExportFilePath("${DataExport.getCurrentDateTime()}-ALG1.csv"))
+                                                var type = "INT"
+                                                if(recordWithBlueToothDevice){
+                                                    type = "EXT"
+                                                }
+                                                DataExport.exportToCsv(DataExport.formatFusionData(polarFusionValues), DataExport.getDefaultExportFilePath("${DataExport.getCurrentDateTime()}-$type-ALG2.csv"))
+                                                DataExport.exportToCsv(DataExport.formatAccData(polarAccValues), DataExport.getDefaultExportFilePath("${DataExport.getCurrentDateTime()}-$type-ALG1.csv"))
                                             },
                                             colors = ButtonDefaults.buttonColors(
                                                 containerColor = Color.DarkGray,
