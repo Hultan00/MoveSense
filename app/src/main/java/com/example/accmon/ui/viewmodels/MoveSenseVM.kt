@@ -11,6 +11,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.accmon.data.ConnectedDevice
+import com.example.accmon.data.Fusion
 import com.example.accmon.data.Gyro
 import com.example.accmon.data.InternalAccelerometer
 import com.example.accmon.data.InternalGyroscope
@@ -41,6 +42,7 @@ interface MoveSenseViewModel {
 
     val polarAccValues: StateFlow<ArrayList<Acc>>
     val polarGyroValues: StateFlow<ArrayList<Gyro>>
+    val polarFusionValues: StateFlow<ArrayList<Fusion>>
 
     fun setRecordWithBluetoothDevice(boolean: Boolean)
     fun setIsRecording(boolean: Boolean)
@@ -55,6 +57,8 @@ interface MoveSenseViewModel {
 class MoveSenseVM (
     private val context: Context
 ):MoveSenseViewModel,ViewModel() {
+
+    private val onlyShowPolarDevices = false
 
     private val _recordWithBluetoothDevice = MutableStateFlow(false)
     override val recordWithBluetoothDevice: StateFlow<Boolean>
@@ -97,6 +101,10 @@ class MoveSenseVM (
     private val _polarGyroValues = MutableStateFlow<ArrayList<Gyro>>(ArrayList())
     override val polarGyroValues: StateFlow<ArrayList<Gyro>>
         get() = _polarGyroValues
+
+    private val _polarFusionValues = MutableStateFlow<ArrayList<Fusion>>(ArrayList())
+    override val polarFusionValues: StateFlow<ArrayList<Fusion>>
+        get() = _polarFusionValues
 
     private var job: Job? = null  // coroutine job for the game event
 
@@ -171,9 +179,23 @@ class MoveSenseVM (
                 }
             }
             hashList.removeAll(hashListRemove)
-            _numOfDiscoveredDevices.value = hashList.size
+
+            if (onlyShowPolarDevices) {
+                for (bDevice in hashList) {
+                    for (pDevice in _foundPolarDevices.value) {
+                        if (bDevice.name == pDevice.name) {
+                            if (!foundBluetoothDevices.value.contains(bDevice)) {
+                                foundBluetoothDevices.value.add(bDevice)
+                            }
+                        }
+                    }
+                }
+            }else{
+                foundBluetoothDevices.value.addAll(hashList)
+            }
+            _numOfDiscoveredDevices.value = _foundBluetoothDevices.value.size
             Log.d("Bluetooth", "Size ${_numOfDiscoveredDevices.value}")
-            foundBluetoothDevices.value.addAll(hashList)
+
             Log.d("Bluetooth", "List ${foundBluetoothDevices.value}")
         }
     }
@@ -234,18 +256,7 @@ class MoveSenseVM (
     fun prepareGraphs(){
         _polarAccValues.value.clear()
         _polarGyroValues.value.clear()
-
-        _polarAccValues.value.add(Acc(8000,8000,8000, 90.0, 180.0, -2))
-        for (i in 0 until 9){
-            _polarAccValues.value.add(Acc(8000,8000,8000,90.0, 180.0, -2))
-        }
-        _polarAccValues.value.add(Acc(-8000,-8000,-8000,-90.0, -180.0, -1))
-
-        _polarGyroValues.value.add(Gyro(2160F,2160F,2160F, -2))
-        for (i in 0 until 9){
-            _polarGyroValues.value.add(Gyro(2160F,2160F,2160F, -2))
-        }
-        _polarGyroValues.value.add(Gyro(-2160F,-2160F,-2160F, -1))
+        _polarFusionValues.value.clear()
     }
 
     fun getCurrentNanoTime(): Long{
@@ -261,15 +272,30 @@ class MoveSenseVM (
         return nanoseconds
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
+
+    fun findClosestGyroValue(timestamp: Long, gyroValues: List<Gyro>): Gyro? {
+        var closestGyroValue: Gyro? = null
+        var minTimeDifference = Long.MAX_VALUE
+
+        for (gyroValue in gyroValues) {
+            val timeDifference = Math.abs(gyroValue.ms - timestamp)
+
+            if (timeDifference < minTimeDifference) {
+                closestGyroValue = gyroValue
+                minTimeDifference = timeDifference
+            }
+        }
+
+        return closestGyroValue
+    }
+
+
     fun startAccStreaming(settings: Map<PolarSensorSetting.SettingType, Int>, settingsGyro: Map<PolarSensorSetting.SettingType, Int>) {
         accDisposable?.dispose() // Dispose of the previous disposable if it exists
         gyroDisposable?.dispose() // Dispose of the previous disposable if it exists
 
         var firstSampleTimestamp: Long = 0
         var firstSampleRead = false
-
-        prepareGraphs()
 
         if (_recordWithBluetoothDevice.value && _isRecording.value) {
             _connectedDevice.value.polarVariant?.let { polarVariant ->
@@ -303,7 +329,7 @@ class MoveSenseVM (
                                 Log.d("Accelerometer", "Sample $index: Time: $timeDifferenceMillis ms")
 
                                 synchronized(_polarAccValues.value) {
-                                    if (_polarAccValues.value.size == 11){
+                                    if (_polarAccValues.value.isEmpty()){
                                         _polarAccValues.value.add(
                                             Acc(
                                                 sample.x,
@@ -364,14 +390,30 @@ class MoveSenseVM (
                                 Log.d("Gyro", "Sample $index: Time: $timeDifferenceMillis ms")
 
                                 synchronized(_polarGyroValues.value) {
-                                    _polarGyroValues.value.add(
-                                        Gyro(
-                                            sample.x,
-                                            sample.y,
-                                            sample.z,
-                                            timeDifferenceMillis
+                                    if (_polarGyroValues.value.isEmpty()) {
+                                        _polarGyroValues.value.add(
+                                            Gyro(
+                                                sample.x,
+                                                sample.y,
+                                                sample.z,
+                                                _polarAccValues.value.get(0).p,
+                                                0F,
+                                                0F,
+                                                timeDifferenceMillis
+                                            )
                                         )
-                                    )
+                                    }else{
+                                        val lastGyro = _polarGyroValues.value.last()
+                                        _polarGyroValues.value.add(
+                                            Gyro(
+                                                sample.x,
+                                                sample.y,
+                                                sample.z,
+                                                timeDifferenceMillis,
+                                                lastGyro
+                                            )
+                                        )
+                                    }
                                 }
                             }
                         },

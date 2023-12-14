@@ -1,9 +1,13 @@
 package com.example.accmon.ui.screens
 
 import Acc
+import DataExport
 import android.bluetooth.BluetoothDevice
+import android.graphics.Paint
 import android.graphics.Typeface
+import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -40,8 +44,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -65,6 +71,7 @@ import co.yml.charts.ui.linechart.model.SelectionHighlightPopUp
 import co.yml.charts.ui.linechart.model.ShadowUnderLine
 import com.example.accmon.R
 import com.example.accmon.data.ConnectedDevice
+import com.example.accmon.data.Fusion
 import com.example.accmon.data.Gyro
 import com.example.accmon.ui.theme.AndroidGreen
 import com.example.accmon.ui.theme.BluetoothBlue
@@ -75,6 +82,8 @@ import com.example.accmon.ui.theme.ThemeBlue
 import com.example.accmon.ui.viewmodels.MoveSenseVM
 import com.polar.sdk.api.model.PolarSensorSetting
 import kotlinx.coroutines.delay
+import java.time.LocalDateTime
+import java.time.temporal.ChronoUnit
 
 @Composable
 fun HomeScreen(
@@ -91,8 +100,10 @@ fun HomeScreen(
     val connectedDevice by vm.connectedDevice.collectAsState()
     val polarAccValues by vm.polarAccValues.collectAsState()
     val polarGyroValues by vm.polarGyroValues.collectAsState()
-
+    val polarFusionValues by vm.polarFusionValues.collectAsState()
     val numOfDiscoveredDevices by vm.numOfDiscoveredDevices.collectAsState()
+
+    var hasExportedData by remember { mutableStateOf(false) }
     var accelerometerValues by remember { mutableStateOf("No data") }
     var gyroValues by remember { mutableStateOf("No data") }
     var isConnected by remember { mutableStateOf(false) }
@@ -103,12 +114,16 @@ fun HomeScreen(
     var hasRecording by remember { mutableStateOf(false) }
     var sampleReferenceTime by remember { mutableLongStateOf(0L) }
     var lastAcc = Acc(0,0,0,-1)
+    var lastGyro = Gyro(0F,0F,0F, 0F, 0F, 0F, -1)
+    var recordingTime by remember { mutableIntStateOf(0) }
+
+    val maxRecordingTimeMs = 20 * 1000
 
     // Observe changes in accelerometer values
     DisposableEffect(accelerometer) {
         val callback: (Float, Float, Float, Long) -> Unit = { x, y, z, nano ->
             var acc = Acc(0,0,0,-1)
-            if (lastAcc.ms >= 0.0){
+            if (!polarAccValues.isEmpty()){
                 acc = Acc(((x / 9.806) * 1000).toInt(), ((y / 9.806) * 1000).toInt(), ((z / 9.806) * 1000).toInt(), (nano - sampleReferenceTime) / 1_000_000, lastAcc)
                 lastAcc = acc
             }else{
@@ -117,7 +132,7 @@ fun HomeScreen(
             }
             synchronized(polarAccValues) {
                 polarAccValues.add(acc)
-                Log.d("polarAccValues", "Added ${acc} to polarAccValues")
+                Log.d("polarAccValues", "Added ${acc.x}, ${acc.y}, ${acc.z}, ${acc.p}, ${acc.r}, ${acc.ms} to polarAccValues")
             }
 
             // Update the UI with the new accelerometer values
@@ -142,10 +157,19 @@ fun HomeScreen(
 
     DisposableEffect(gyroscope) {
         val callback: (Float, Float, Float, Long) -> Unit = { x, y, z, nano ->
-            val gyro = Gyro( x, y, z, (nano - sampleReferenceTime) / 1_000_000)
+            var gyro = Gyro( x, y, z, x, y, z, -1)
+            if (!polarGyroValues.isEmpty()){
+                Log.d("polarGyroValues", "First")
+                gyro = Gyro( x, y, z, (nano - sampleReferenceTime) / 1_000_000, lastGyro)
+                lastGyro = gyro
+            }else{
+                Log.d("polarGyroValues", "Second")
+                gyro = Gyro( 0F, 0F, 0F, polarAccValues.get(0).p, 0F, 0F, (nano - sampleReferenceTime) / 1_000_000)
+                lastGyro = gyro
+            }
             synchronized(polarGyroValues){
                 polarGyroValues.add(gyro)
-                Log.d("polarGyroValues", "Added ${gyro} to polarGyroValues")
+                Log.d("polarGyroValues", "Added ${gyro.x}, ${gyro.y},${gyro.z}, ${gyro.ms} to polarGyroValues")
             }
             // Update the UI with the new accelerometer values
             gyroValues = "X: ${
@@ -185,16 +209,18 @@ fun HomeScreen(
 
             if (isRecording){
                 synchronized(polarAccValues) {
-                    accSampleCount = polarAccValues.size
-                    val acc = polarAccValues.get(polarAccValues.size - 1)
-                    accelerometerValues = "X: ${
-                        String.format("%.3f", acc.x * 0.009806).toFloat()
-                    } Y: ${
-                        String.format("%.3f", acc.y * 0.009806).toFloat()
-                    } Z: ${String.format("%.3f", acc.z * 0.009806).toFloat()}\n" +
-                            "R: ${String.format("%.3f", acc.r).toFloat()}" +
-                            " P: ${String.format("%.3f", acc.p).toFloat()}\n" +
-                            "[ms]: ${acc.ms}"
+                    if (!polarAccValues.isEmpty()) {
+                        accSampleCount = polarAccValues.size
+                        val acc = polarAccValues.get(polarAccValues.size - 1)
+                        accelerometerValues = "X: ${
+                            String.format("%.3f", acc.x * 0.009806).toFloat()
+                        } Y: ${
+                            String.format("%.3f", acc.y * 0.009806).toFloat()
+                        } Z: ${String.format("%.3f", acc.z * 0.009806).toFloat()}\n" +
+                                "R: ${String.format("%.3f", acc.r).toFloat()}" +
+                                " P: ${String.format("%.3f", acc.p).toFloat()}\n" +
+                                "[ms]: ${acc.ms}"
+                    }
                 }
                 synchronized(polarGyroValues) {
                     if (!polarGyroValues.isEmpty()) {
@@ -207,6 +233,43 @@ fun HomeScreen(
                         } Z: ${String.format("%.3f", gyro.z).toFloat()}\n" + "[ms]: ${gyro.ms}"
                     }
                 }
+                synchronized(polarFusionValues){
+                    polarFusionValues.clear()
+
+                    synchronized(polarAccValues) {
+                        synchronized(polarGyroValues) {
+                            for (accValue in polarAccValues) {
+                                val closestGyroValue = vm.findClosestGyroValue(accValue.ms, polarGyroValues)
+
+                                if (closestGyroValue != null) {
+                                    polarFusionValues.add(Fusion(accValue, closestGyroValue))
+                                    Log.d(
+                                        "polarFusionValues",
+                                        "Added ${accValue.p}, ${closestGyroValue.x} to polarFusionValues"
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                if(recordingTime >= maxRecordingTimeMs){
+                    vm.setIsRecording(false)
+                    if (recordWithBlueToothDevice){
+                        vm.stopAccStreaming()
+                    }else{
+                        sampleReferenceTime = 0L
+                    }
+                }
+                // Get the current LocalDateTime
+                val localDateTime = LocalDateTime.now()
+
+                // Set the epoch date to 2000-01-01
+                val epochDateTime = LocalDateTime.of(2000, 1, 1, 0, 0, 0)
+
+                // Calculate the nanoseconds since the epoch
+                val nanoseconds = ChronoUnit.NANOS.between(epochDateTime, localDateTime)
+
+                recordingTime = ((nanoseconds - sampleReferenceTime)/1_000_000).toInt()
             }
 
             // Check internet interval
@@ -321,7 +384,7 @@ fun HomeScreen(
                                 }
                             }
                         }
-                    }else if (numOfDiscoveredDevices != 0) {
+                    }else if (numOfDiscoveredDevices != 0 && !hasRecording) {
                         for (index in 0 until numOfDiscoveredDevices) {
                             item {
                                 val device = discoveredDevices.get(index)
@@ -379,7 +442,7 @@ fun HomeScreen(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = if (isBluetoothSearching) "Searching..." else "No Devices Found",
+                                        text = if (isBluetoothSearching) "Searching..." else if (hasRecording && (numOfDiscoveredDevices > 0)) "..." else "No Devices Found",
                                         style = MaterialTheme.typography.titleLarge,
                                         color = Color.Gray
                                     )
@@ -421,7 +484,140 @@ fun HomeScreen(
                         verticalArrangement = Arrangement.Top,
                         horizontalAlignment = Alignment.CenterHorizontally
                     ){
-                        LaunchedEffect(key1 = , block = )
+                        if (!isRecording && !hasExportedData) {
+                            item {
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 10.dp),
+                                    shape = RoundedCornerShape(10.dp), // Set the corner radius as needed
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(
+                                                color = Color.DarkGray,
+                                                shape = RoundedCornerShape(10.dp)
+                                            ),
+                                        verticalArrangement = Arrangement.Top,
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Button(
+                                            onClick = {
+                                                hasExportedData = true
+                                                DataExport.exportToCsv(DataExport.formatFusionData(polarFusionValues), DataExport.getDefaultExportFilePath("PitchSensorFusionData-${DataExport.getCurrentDateTime()}.csv"))
+                                                DataExport.exportToCsv(DataExport.formatAccData(polarAccValues), DataExport.getDefaultExportFilePath("PitchAccData-${DataExport.getCurrentDateTime()}.csv"))
+                                            },
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = Color.DarkGray,
+                                            ),
+                                            modifier = Modifier
+                                                .border(
+                                                    1.dp,
+                                                    ThemeBlack,
+                                                    shape = RoundedCornerShape(10.dp)
+                                                )
+                                                .fillMaxWidth()
+                                                .background(Color.Gray, RoundedCornerShape(10.dp)),
+                                            shape = RoundedCornerShape(10.dp)
+                                        ) {
+                                            Text(
+                                                text = "Export Data",
+                                                fontSize = 30.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                fontFamily = FontFamily.Default,
+                                                color = StyleBlue
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        item {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 10.dp),
+                                shape = RoundedCornerShape(10.dp), // Set the corner radius as needed
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(
+                                            color = Color.DarkGray,
+                                            shape = RoundedCornerShape(10.dp)
+                                        ),
+                                    verticalArrangement = Arrangement.Top,
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = "Fusion-X [°/s]",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = Color.White
+                                    )
+                                    for (count in gyroSampleCount until gyroSampleCount + 1) {
+                                        FusionGraphX(polarFusionValues = polarFusionValues, recordWithBlueToothDevice)
+                                    }
+                                }
+                            }
+                        }
+                        item {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 10.dp),
+                                shape = RoundedCornerShape(10.dp), // Set the corner radius as needed
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(
+                                            color = Color.DarkGray,
+                                            shape = RoundedCornerShape(10.dp)
+                                        ),
+                                    verticalArrangement = Arrangement.Top,
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = "Pitch Angle [°∠]",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = Color.White
+                                    )
+                                    for (count in accSampleCount until accSampleCount + 1) {
+
+                                        AccGraphPitch(polarAccValues = polarAccValues, recordWithBlueToothDevice)
+                                    }
+                                }
+                            }
+                        }
+                        item {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 10.dp),
+                                shape = RoundedCornerShape(10.dp), // Set the corner radius as needed
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(
+                                            color = Color.DarkGray,
+                                            shape = RoundedCornerShape(10.dp)
+                                        ),
+                                    verticalArrangement = Arrangement.Top,
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = "Roll Angle [°∠]",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = Color.White
+                                    )
+                                    for (count in accSampleCount until accSampleCount + 1) {
+                                        AccGraphRoll(polarAccValues = polarAccValues, recordWithBlueToothDevice)
+                                    }
+                                }
+                            }
+                        }
                         item {
                             Card(
                                 modifier = Modifier
@@ -445,6 +641,7 @@ fun HomeScreen(
                                         color = Color.White
                                     )
                                     for (count in accSampleCount until accSampleCount + 1) {
+                                        Log.d("AccGraphX", "Updating AccGraphX..")
                                         AccGraphX(polarAccValues = polarAccValues, recordWithBlueToothDevice)
                                     }
                                 }
@@ -504,63 +701,6 @@ fun HomeScreen(
                                     for (count in accSampleCount until accSampleCount + 1) {
 
                                         AccGraphZ(polarAccValues = polarAccValues, recordWithBlueToothDevice)
-                                    }
-                                }
-                            }
-                        }
-                        item {
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 10.dp),
-                                shape = RoundedCornerShape(10.dp), // Set the corner radius as needed
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(
-                                            color = Color.DarkGray,
-                                            shape = RoundedCornerShape(10.dp)
-                                        ),
-                                    verticalArrangement = Arrangement.Top,
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text(
-                                        text = "Pitch Angle [°∠]",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = Color.White
-                                    )
-                                    for (count in accSampleCount until accSampleCount + 1) {
-
-                                        AccGraphPitch(polarAccValues = polarAccValues, recordWithBlueToothDevice)
-                                    }
-                                }
-                            }
-                        }
-                        item {
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 10.dp),
-                                shape = RoundedCornerShape(10.dp), // Set the corner radius as needed
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(
-                                            color = Color.DarkGray,
-                                            shape = RoundedCornerShape(10.dp)
-                                        ),
-                                    verticalArrangement = Arrangement.Top,
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text(
-                                        text = "Roll Angle [°∠]",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = Color.White
-                                    )
-                                    for (count in accSampleCount until accSampleCount + 1) {
-                                        AccGraphRoll(polarAccValues = polarAccValues, recordWithBlueToothDevice)
                                     }
                                 }
                             }
@@ -649,60 +789,20 @@ fun HomeScreen(
                                 }
                             }
                         }
-                        item {
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 10.dp),
-                                shape = RoundedCornerShape(10.dp), // Set the corner radius as needed
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(
-                                            color = Color.DarkGray,
-                                            shape = RoundedCornerShape(10.dp)
-                                        ),
-                                    verticalArrangement = Arrangement.Top,
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text(
-                                        text = "Debug Data",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = Color.White
-                                    )
-                                    Text(
-                                        text = accelerometerValues,
-                                        style = MaterialTheme.typography.titleLarge,
-                                        fontWeight = FontWeight.Bold,
-                                        fontFamily = FontFamily.Serif,
-                                        color = Color.Black
-                                    )
-                                    Text(
-                                        text = gyroValues,
-                                        style = MaterialTheme.typography.titleLarge,
-                                        fontWeight = FontWeight.Bold,
-                                        fontFamily = FontFamily.Serif,
-                                        color = Color.Black
-                                    )
-                                }
-                            }
-                        }
                     }
                 } else {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(15.dp),
-                    ) {
+                            .padding(15.dp),) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .background(
                                     color = Color.DarkGray
                                 )
-                                .padding(8.dp),
-
+                                .padding(8.dp)
+                                .clickable {},
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -717,65 +817,67 @@ fun HomeScreen(
             Column (
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(5.dp),
+                    .padding(15.dp),
                 verticalArrangement = Arrangement.Top,
                 horizontalAlignment = Alignment.CenterHorizontally,
             ){
                 Row (
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(5.dp),
+                        .padding(0.dp),
                     verticalAlignment = Alignment.Bottom,
                     horizontalArrangement = Arrangement.Center
                 ){
-                    Button(
-                        onClick = {
-                            vm.setRecordWithBluetoothDevice(false)
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            contentColor = if (!recordWithBlueToothDevice) AndroidGreen else Color.DarkGray,
-                            containerColor = if (!recordWithBlueToothDevice) Color.DarkGray else Color.Gray
-                        ),
-                        modifier = Modifier
-                            .border(1.dp, ThemeBlack, shape = RoundedCornerShape(10.dp))
-                            .weight(1f)
-                            .background(Color.Gray, RoundedCornerShape(10.dp)),
-                        shape = RoundedCornerShape(10.dp),
-                        enabled = !(isRecording && (recordWithBlueToothDevice))
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.android),
-                            contentDescription = "Android",
+                    if(!hasRecording) {
+                        Button(
+                            onClick = {
+                                vm.setRecordWithBluetoothDevice(false)
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                contentColor = if (!recordWithBlueToothDevice) AndroidGreen else Color.DarkGray,
+                                containerColor = if (!recordWithBlueToothDevice) Color.DarkGray else Color.Gray
+                            ),
                             modifier = Modifier
-                                .height(70.dp)
-                                .aspectRatio(3f / 2f)
-                        )
-                    }
-                    Button(
-                        onClick = {
-                            vm.setRecordWithBluetoothDevice(true)
-                            if (!isConnected){
-                                vm.getFoundBluetoothDevices()
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            contentColor = if (recordWithBlueToothDevice) BluetoothBlue else Color.DarkGray,
-                            containerColor = if (recordWithBlueToothDevice) Color.DarkGray else Color.Gray
-                        ),
-                        modifier = Modifier
-                            .border(1.dp, ThemeBlack, shape = RoundedCornerShape(10.dp))
-                            .weight(1f)
-                            .background(Color.Gray, RoundedCornerShape(10.dp)),
-                        shape = RoundedCornerShape(10.dp),
-                        enabled = !(isRecording && !recordWithBlueToothDevice)
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.bluetooth),
-                            contentDescription = "Bluetooth",
+                                .border(1.dp, ThemeBlack, shape = RoundedCornerShape(15.dp))
+                                .weight(1f)
+                                .background(Color.Gray, RoundedCornerShape(15.dp)),
+                            shape = RoundedCornerShape(15.dp),
+                            enabled = !(isRecording && (recordWithBlueToothDevice))
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.android),
+                                contentDescription = "Android",
+                                modifier = Modifier
+                                    .height(70.dp)
+                                    .aspectRatio(3f / 2f)
+                            )
+                        }
+                        Button(
+                            onClick = {
+                                vm.setRecordWithBluetoothDevice(true)
+                                if (!isConnected) {
+                                    vm.getFoundBluetoothDevices()
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                contentColor = if (recordWithBlueToothDevice) BluetoothBlue else Color.DarkGray,
+                                containerColor = if (recordWithBlueToothDevice) Color.DarkGray else Color.Gray
+                            ),
                             modifier = Modifier
-                                .height(70.dp)
-                                .aspectRatio(3f / 2f)
-                        )
+                                .border(1.dp, ThemeBlack, shape = RoundedCornerShape(15.dp))
+                                .weight(1f)
+                                .background(Color.Gray, RoundedCornerShape(15.dp)),
+                            shape = RoundedCornerShape(15.dp),
+                            enabled = !(isRecording && !recordWithBlueToothDevice)
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.bluetooth),
+                                contentDescription = "Bluetooth",
+                                modifier = Modifier
+                                    .height(70.dp)
+                                    .aspectRatio(3f / 2f)
+                            )
+                        }
                     }
                 }
                 Button(
@@ -784,20 +886,19 @@ fun HomeScreen(
                             vm.setIsRecording(false)
                             if (recordWithBlueToothDevice){
                                 vm.stopAccStreaming()
-                            }else{
-                                sampleReferenceTime = 0L
                             }
                         } else if(hasRecording) {
+                            hasExportedData = false
                             hasRecording = false
+                            sampleReferenceTime = 0L
+                            recordingTime = 0
                         } else {
+                            sampleReferenceTime = vm.getCurrentNanoTime()
                             hasRecording = true
+                            vm.prepareGraphs()
+                            vm.setIsRecording(true)
                             if (recordWithBlueToothDevice){
-                                vm.setIsRecording(true)
                                 vm.startAccStreaming(settings, settingsGyro)
-                            }else{
-                                vm.prepareGraphs()
-                                sampleReferenceTime = vm.getCurrentNanoTime()
-                                vm.setIsRecording(true)
                             }
                         }
                     },
@@ -805,14 +906,14 @@ fun HomeScreen(
                         containerColor = Color.DarkGray,
                     ),
                     modifier = Modifier
-                        .border(1.dp, ThemeBlack, shape = RoundedCornerShape(10.dp))
+                        .border(1.dp, ThemeBlack, shape = RoundedCornerShape(15.dp))
                         .fillMaxWidth()
-                        .background(Color.Gray, RoundedCornerShape(10.dp)),
-                    shape = RoundedCornerShape(10.dp),
+                        .background(Color.Gray, RoundedCornerShape(15.dp)),
+                    shape = RoundedCornerShape(15.dp),
                     enabled = (recordWithBlueToothDevice && isConnected) || !recordWithBlueToothDevice || (hasRecording && !isRecording)
                 ) {
                     Text(
-                        text = if (isRecording) "STOP" else if (hasRecording) "RESET" else "REC",
+                        text = if (isRecording) "STOP ${(maxRecordingTimeMs - recordingTime)/1000}" else if (hasRecording) "RESET" else "REC",
                         fontSize = 60.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Default,
@@ -834,17 +935,18 @@ fun AccGraphX(polarAccValues: ArrayList<Acc>, recordWithBluetoothDevice: Boolean
             indexIterate = 1
         }
         synchronized(polarAccValues) {
-            val pointsData: List<Point> = polarAccValues
-                .filterIndexed { index, _ -> index % indexIterate == 0 } // Select every tenth element
-                .map { acc ->
-                    Point(
-                        (acc.ms / 1000.0).toFloat(),
-                        acc.x.toFloat()
-                    )
-                }
+            var pointsData = ArrayList<Point>()
+            for (index in 0 until indexIterate){
+                pointsData.add(Point(-0F, 8000F))
+            }
+            pointsData.add(Point(-0F, -8000F))
+            for (i in 0 until polarAccValues.size step indexIterate) {
+                val acc = polarAccValues[i]
+                pointsData.add(Point((acc.ms / 1000.0).toFloat(), acc.x.toFloat()))
+            }
 
             val xAxisData = AxisData.Builder()
-                .axisStepSize(25.dp)
+                .axisStepSize(38.dp)
                 .backgroundColor(StyleBlue)
                 .steps(pointsData.size - 1)
                 .labelData { i -> i.toString() }
@@ -922,17 +1024,18 @@ fun AccGraphY(polarAccValues: ArrayList<Acc>, recordWithBluetoothDevice: Boolean
             indexIterate = 1
         }
         synchronized(polarAccValues) {
-            val pointsData: List<Point> = polarAccValues
-                .filterIndexed { index, _ -> index % indexIterate == 0 } // Select every tenth element
-                .map { acc ->
-                    Point(
-                        (acc.ms / 1000.0).toFloat(),
-                        acc.y.toFloat()
-                    )
-                }
+            var pointsData = ArrayList<Point>()
+            for (index in 0 until indexIterate){
+                pointsData.add(Point(-0F, 8000F))
+            }
+            pointsData.add(Point(-0F, -8000F))
+            for (i in 0 until polarAccValues.size step indexIterate) {
+                val acc = polarAccValues[i]
+                pointsData.add(Point((acc.ms / 1000.0).toFloat(), acc.y.toFloat()))
+            }
 
             val xAxisData = AxisData.Builder()
-                .axisStepSize(25.dp)
+                .axisStepSize(38.dp)
                 .backgroundColor(StyleBlue)
                 .steps(pointsData.size - 1)
                 .labelData { i -> i.toString() }
@@ -1010,17 +1113,18 @@ fun AccGraphZ(polarAccValues: ArrayList<Acc>, recordWithBluetoothDevice: Boolean
             indexIterate = 1
         }
         synchronized(polarAccValues) {
-            val pointsData: List<Point> = polarAccValues
-                .filterIndexed { index, _ -> index % indexIterate == 0 } // Select every tenth element
-                .map { acc ->
-                    Point(
-                        (acc.ms / 1000.0).toFloat(),
-                        acc.z.toFloat()
-                    )
-                }
+            var pointsData = ArrayList<Point>()
+            for (index in 0 until indexIterate){
+                pointsData.add(Point(-0F, 8000F))
+            }
+            pointsData.add(Point(-0F, -8000F))
+            for (i in 0 until polarAccValues.size step indexIterate) {
+                val acc = polarAccValues[i]
+                pointsData.add(Point((acc.ms / 1000.0).toFloat(), acc.z.toFloat()))
+            }
 
             val xAxisData = AxisData.Builder()
-                .axisStepSize(25.dp)
+                .axisStepSize(38.dp)
                 .backgroundColor(StyleBlue)
                 .steps(pointsData.size - 1)
                 .labelData { i -> i.toString() }
@@ -1098,17 +1202,18 @@ fun AccGraphPitch(polarAccValues: ArrayList<Acc>, recordWithBluetoothDevice: Boo
             indexIterate = 1
         }
         synchronized(polarAccValues) {
-            val pointsData: List<Point> = polarAccValues
-                .filterIndexed { index, _ -> index % indexIterate == 0 } // Select every tenth element
-                .map { acc ->
-                    Point(
-                        (acc.ms / 1000.0).toFloat(),
-                        acc.p.toFloat()
-                    )
-                }
+            var pointsData = ArrayList<Point>()
+            for (index in 0 until indexIterate){
+                pointsData.add(Point(-0F, 90F))
+            }
+            pointsData.add(Point(-0F, -90F))
+            for (i in 0 until polarAccValues.size step indexIterate) {
+                val acc = polarAccValues[i]
+                pointsData.add(Point((acc.ms / 1000.0).toFloat(), acc.p.toFloat()))
+            }
 
             val xAxisData = AxisData.Builder()
-                .axisStepSize(25.dp)
+                .axisStepSize(38.dp)
                 .backgroundColor(StyleBlue)
                 .steps(pointsData.size - 1)
                 .labelData { i -> i.toString() }
@@ -1186,17 +1291,18 @@ fun AccGraphRoll(polarAccValues: ArrayList<Acc>, recordWithBluetoothDevice: Bool
             indexIterate = 1
         }
         synchronized(polarAccValues) {
-            val pointsData: List<Point> = polarAccValues
-                .filterIndexed { index, _ -> index % indexIterate == 0 } // Select every tenth element
-                .map { acc ->
-                    Point(
-                        (acc.ms / 1000.0).toFloat(),
-                        acc.r.toFloat()
-                    )
-                }
+            var pointsData = ArrayList<Point>()
+            for (index in 0 until indexIterate){
+                pointsData.add(Point(-0F, 180F))
+            }
+            pointsData.add(Point(-0F, -180F))
+            for (i in 0 until polarAccValues.size step indexIterate) {
+                val acc = polarAccValues[i]
+                pointsData.add(Point((acc.ms / 1000.0).toFloat(), acc.r.toFloat()))
+            }
 
             val xAxisData = AxisData.Builder()
-                .axisStepSize(25.dp)
+                .axisStepSize(38.dp)
                 .backgroundColor(StyleBlue)
                 .steps(pointsData.size - 1)
                 .labelData { i -> i.toString() }
@@ -1274,17 +1380,18 @@ fun GyroGraphX(polarGyroValues: ArrayList<Gyro>, recordWithBluetoothDevice: Bool
             indexIterate = 1
         }
         synchronized(polarGyroValues) {
-            val pointsData: List<Point> = polarGyroValues
-                .filterIndexed { index, _ -> index % indexIterate == 0 } // Select every tenth element
-                .map { acc ->
-                    Point(
-                        (acc.ms / 1000.0).toFloat(),
-                        acc.x
-                    )
-                }
+            var pointsData = ArrayList<Point>()
+            for (index in 0 until indexIterate){
+                pointsData.add(Point(-0F, 2160F))
+            }
+            pointsData.add(Point(-0F, -2160F))
+            for (i in 0 until polarGyroValues.size step indexIterate) {
+                val gyro = polarGyroValues[i]
+                pointsData.add(Point((gyro.ms / 1000.0).toFloat(), gyro.x))
+            }
 
             val xAxisData = AxisData.Builder()
-                .axisStepSize(25.dp)
+                .axisStepSize(38.dp)
                 .backgroundColor(StyleBlue)
                 .steps(pointsData.size - 1)
                 .labelData { i -> i.toString() }
@@ -1362,17 +1469,18 @@ fun GyroGraphY(polarGyroValues: ArrayList<Gyro>, recordWithBluetoothDevice: Bool
             indexIterate = 1
         }
         synchronized(polarGyroValues) {
-            val pointsData: List<Point> = polarGyroValues
-                .filterIndexed { index, _ -> index % indexIterate == 0 } // Select every tenth element
-                .map { acc ->
-                    Point(
-                        (acc.ms / 1000.0).toFloat(),
-                        acc.y
-                    )
-                }
+            var pointsData = ArrayList<Point>()
+            for (index in 0 until indexIterate){
+                pointsData.add(Point(-0F, 2160F))
+            }
+            pointsData.add(Point(-0F, -2160F))
+            for (i in 0 until polarGyroValues.size step indexIterate) {
+                val gyro = polarGyroValues[i]
+                pointsData.add(Point((gyro.ms / 1000.0).toFloat(), gyro.y))
+            }
 
             val xAxisData = AxisData.Builder()
-                .axisStepSize(25.dp)
+                .axisStepSize(38.dp)
                 .backgroundColor(StyleBlue)
                 .steps(pointsData.size - 1)
                 .labelData { i -> i.toString() }
@@ -1450,17 +1558,18 @@ fun GyroGraphZ(polarGyroValues: ArrayList<Gyro>, recordWithBluetoothDevice: Bool
             indexIterate = 1
         }
         synchronized(polarGyroValues) {
-            val pointsData: List<Point> = polarGyroValues
-                .filterIndexed { index, _ -> index % indexIterate == 0 } // Select every tenth element
-                .map { acc ->
-                    Point(
-                        (acc.ms / 1000.0).toFloat(),
-                        acc.z
-                    )
-                }
+            var pointsData = ArrayList<Point>()
+            for (index in 0 until indexIterate){
+                pointsData.add(Point(-0F, 2160F))
+            }
+            pointsData.add(Point(-0F, -2160F))
+            for (i in 0 until polarGyroValues.size step indexIterate) {
+                val gyro = polarGyroValues[i]
+                pointsData.add(Point((gyro.ms / 1000.0).toFloat(), gyro.z))
+            }
 
             val xAxisData = AxisData.Builder()
-                .axisStepSize(25.dp)
+                .axisStepSize(38.dp)
                 .backgroundColor(StyleBlue)
                 .steps(pointsData.size - 1)
                 .labelData { i -> i.toString() }
@@ -1529,13 +1638,96 @@ fun GyroGraphZ(polarGyroValues: ArrayList<Gyro>, recordWithBluetoothDevice: Bool
 }
 
 @Composable
-fun BluetoothDeviceItem(vm: MoveSenseVM, bluetoothDevice: BluetoothDevice, connectedDevice: ConnectedDevice) {
-    var selectedDevice by remember { mutableStateOf(false) }
-    if(connectedDevice != null){
-        if (connectedDevice.bluetoothVariant?.equals(bluetoothDevice) == true){
-            selectedDevice = true
+fun FusionGraphX(polarFusionValues: ArrayList<Fusion>, recordWithBluetoothDevice: Boolean){
+    if (!polarFusionValues.isEmpty()) {
+        var indexIterate = 0
+        if (recordWithBluetoothDevice){
+            indexIterate = 10
+        }else{
+            indexIterate = 1
+        }
+        synchronized(polarFusionValues) {
+            var pointsData = ArrayList<Point>()
+            for (index in 0 until indexIterate){
+                pointsData.add(Point(-0F, 90F))
+            }
+            pointsData.add(Point(-0F, -90F))
+            for (i in 0 until polarFusionValues.size step indexIterate) {
+                val fusion = polarFusionValues[i]
+                pointsData.add(Point((fusion.ms / 1000.0).toFloat(), fusion.p))
+            }
+
+            val xAxisData = AxisData.Builder()
+                .axisStepSize(38.dp)
+                .backgroundColor(StyleBlue)
+                .steps(pointsData.size - 1)
+                .labelData { i -> i.toString() }
+                .labelAndAxisLinePadding(5.dp)
+                .build()
+
+
+            val stepSize = 22.5
+            val steps = 4
+
+            val yAxisData = AxisData.Builder()
+                .steps(steps * 2)  // Include zero as well
+                .backgroundColor(StylePink)
+                .labelAndAxisLinePadding(5.dp)
+                .labelData { i ->
+                    val yValue = (i - steps) * stepSize
+                    yValue.toString()  // Convert to String
+                }.build()
+
+
+            val lineChartData = LineChartData(
+                linePlotData = LinePlotData(
+                    lines = listOf(
+                        Line(
+                            dataPoints = pointsData,
+                            LineStyle(color = ThemeBlue, lineType = LineType.SmoothCurve(isDotted = true)),
+                            IntersectionPoint(radius = 0.dp),
+                            selectionHighlightPoint = SelectionHighlightPoint(
+                                color = Color.Black,
+                                radius = 5.dp
+                            ),
+                            shadowUnderLine = ShadowUnderLine(
+                                brush = Brush.verticalGradient(
+                                    listOf(
+                                        ThemeBlue,
+                                        Color.Transparent
+                                    )
+                                ), alpha = 0.3f
+                            ),
+                            selectionHighlightPopUp = SelectionHighlightPopUp(
+                                backgroundColor = Color.Black,
+                                backgroundStyle = Stroke(2f),
+                                labelColor = Color.Red,
+                                labelTypeface = Typeface.DEFAULT_BOLD,
+                            )
+                        )
+                    ),
+                ),
+                xAxisData = xAxisData,
+                yAxisData = yAxisData,
+                gridLines = GridLines(),
+                backgroundColor = Color.White,
+                paddingRight = 0.dp,
+                paddingTop = 10.dp,
+                bottomPadding = 0.dp
+            )
+            LineChart(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(300.dp)
+                    .padding(0.dp),
+                lineChartData = lineChartData
+            )
         }
     }
+}
+
+@Composable
+fun BluetoothDeviceItem(vm: MoveSenseVM, bluetoothDevice: BluetoothDevice, connectedDevice: ConnectedDevice) {
     var textcolor = Color.Gray
     for (pDevice in vm.foundPolarDevices.value){
         if (bluetoothDevice.name == pDevice.name){
