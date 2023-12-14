@@ -4,9 +4,7 @@ import Acc
 import BluetoothDeviceScanner
 import android.bluetooth.BluetoothDevice
 import android.content.Context
-import android.os.Build
 import android.util.Log
-import androidx.annotation.RequiresApi
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -237,13 +235,11 @@ class MoveSenseVM (
     }
 
     fun disconnectDevice(){
-        if (_connectedDevice.value != null) {
-            _connectedDevice.value.polarVariant?.let {
-                bluetoothDeviceScanner.api.disconnectFromDevice(
-                    it.deviceId)
-            }
-            _connectedDevice.value.setConnectedDevice(null, null)
+        _connectedDevice.value.polarVariant?.let {
+            bluetoothDeviceScanner.api.disconnectFromDevice(
+                it.deviceId)
         }
+        _connectedDevice.value.setConnectedDevice(null, null)
     }
 
     override fun getContext(): Context{
