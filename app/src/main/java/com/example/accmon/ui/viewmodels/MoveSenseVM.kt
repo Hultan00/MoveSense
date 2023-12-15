@@ -282,6 +282,9 @@ class MoveSenseVM (
             }
         }
 
+        if(minTimeDifference > 10){
+            return null
+        }
         return closestGyroValue
     }
 

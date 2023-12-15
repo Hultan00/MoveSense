@@ -239,10 +239,14 @@ fun HomeScreen(
                                     polarFusionValues.add(Fusion(accValue, closestGyroValue))
                                     Log.d(
                                         "polarFusionValues",
-                                        "Added ${accValue.p}, ${closestGyroValue.x} to polarFusionValues"
+                                        "Added (${accValue.ms}) ${accValue.p}, (${closestGyroValue.ms}) ${closestGyroValue.x} to polarFusionValues"
                                     )
                                 }
                             }
+                            Log.d(
+                                "polarFusionValues",
+                                "---------- Size, ${polarFusionValues.size} -------------"
+                            )
                         }
                     }
                 }
