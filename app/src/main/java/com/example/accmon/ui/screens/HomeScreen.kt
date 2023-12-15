@@ -453,56 +453,65 @@ fun HomeScreen(
                 }
                 if(hasRecording) {
                     if (!isRecording && !hasExportedData) {
-
-                            Card(
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 10.dp),
+                            shape = RoundedCornerShape(10.dp), // Set the corner radius as needed
+                            ) {
+                            Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 10.dp),
-                                shape = RoundedCornerShape(10.dp), // Set the corner radius as needed
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(
-                                            color = Color.DarkGray,
-                                            shape = RoundedCornerShape(10.dp)
-                                        ),
-                                    verticalArrangement = Arrangement.Top,
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Button(
-                                        onClick = {
-                                            hasExportedData = true
-                                            var type = "INT"
-                                            if(recordWithBlueToothDevice){
-                                                type = "EXT"
-                                            }
-                                            DataExport.exportToCsv(DataExport.formatFusionData(polarFusionValues), DataExport.getDefaultExportFilePath("${DataExport.getCurrentDateTime()}-$type-ALG2.csv"))
-                                            DataExport.exportToCsv(DataExport.formatAccData(polarAccValues), DataExport.getDefaultExportFilePath("${DataExport.getCurrentDateTime()}-$type-ALG1.csv"))
-                                        },
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = Color.DarkGray,
-                                        ),
-                                        modifier = Modifier
-                                            .border(
-                                                1.dp,
-                                                ThemeBlack,
-                                                shape = RoundedCornerShape(10.dp)
-                                            )
-                                            .fillMaxWidth()
-                                            .background(Color.Gray, RoundedCornerShape(10.dp)),
+                                    .background(
+                                        color = Color.DarkGray,
                                         shape = RoundedCornerShape(10.dp)
-                                    ) {
-                                        Text(
-                                            text = "Export Data",
-                                            fontSize = 30.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            fontFamily = FontFamily.Default,
-                                            color = StyleBlue
+                                    ),
+                                verticalArrangement = Arrangement.Top,
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Button(
+                                    onClick = {
+                                        hasExportedData = true
+                                        var type = "INT"
+                                        if (recordWithBlueToothDevice) {
+                                            type = "EXT"
+                                        }
+                                        DataExport.exportToCsv(
+                                            DataExport.formatFusionData(
+                                                polarFusionValues
+                                            ),
+                                            DataExport.getDefaultExportFilePath("${DataExport.getCurrentDateTime()}-$type-ALG2.csv")
                                         )
-                                    }
+                                        DataExport.exportToCsv(
+                                            DataExport.formatAccData(
+                                                polarAccValues
+                                            ),
+                                            DataExport.getDefaultExportFilePath("${DataExport.getCurrentDateTime()}-$type-ALG1.csv")
+                                        )
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color.DarkGray,
+                                    ),
+                                    modifier = Modifier
+                                        .border(
+                                            1.dp,
+                                            ThemeBlack,
+                                            shape = RoundedCornerShape(10.dp)
+                                        )
+                                        .fillMaxWidth()
+                                        .background(Color.Gray, RoundedCornerShape(10.dp)),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Text(
+                                        text = "Export Data",
+                                        fontSize = 30.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.Default,
+                                        color = StyleBlue
+                                    )
                                 }
                             }
+                        }
                     }
                     LazyColumn(
                         modifier = Modifier
