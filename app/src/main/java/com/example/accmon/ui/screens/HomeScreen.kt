@@ -98,10 +98,7 @@ fun HomeScreen(
     val numOfDiscoveredDevices by vm.numOfDiscoveredDevices.collectAsState()
 
     var hasExportedData by remember { mutableStateOf(false) }
-    var accelerometerValues by remember { mutableStateOf("No data") }
-    var gyroValues by remember { mutableStateOf("No data") }
     var isConnected by remember { mutableStateOf(false) }
-    var delayMS by remember { mutableLongStateOf(0) }
     var bluetoothEnabled by remember { mutableStateOf(false) }
     var accSampleCount by remember { mutableIntStateOf(0) }
     var gyroSampleCount by remember { mutableIntStateOf(0) }
@@ -116,7 +113,7 @@ fun HomeScreen(
     // Observe changes in accelerometer values
     DisposableEffect(accelerometer) {
         val callback: (Float, Float, Float, Long) -> Unit = { x, y, z, nano ->
-            var acc = Acc(0,0,0,-1)
+            val acc: Acc
             if (!polarAccValues.isEmpty()){
                 acc = Acc(((x / 9.806) * 1000).toInt(), ((y / 9.806) * 1000).toInt(), ((z / 9.806) * 1000).toInt(), (nano - sampleReferenceTime) / 1_000_000, lastAcc)
                 lastAcc = acc
@@ -128,16 +125,6 @@ fun HomeScreen(
                 polarAccValues.add(acc)
                 Log.d("polarAccValues", "Added ${acc.x}, ${acc.y}, ${acc.z}, ${acc.p}, ${acc.r}, ${acc.ms} to polarAccValues")
             }
-
-            // Update the UI with the new accelerometer values
-            accelerometerValues = "X: ${
-                String.format("%.3f", acc.x * 0.009806).toFloat()
-            } Y: ${
-                String.format("%.3f", acc.y * 0.009806).toFloat()
-            } Z: ${String.format("%.3f", acc.z * 0.009806).toFloat()}\n" +
-                    "R: ${String.format("%.3f", acc.r).toFloat()}" +
-                    " P: ${String.format("%.3f", acc.p).toFloat()}\n" +
-                    "[ms]: ${acc.ms}"
         }
 
         // Set the callback to be notified when accelerometer values change
@@ -151,26 +138,33 @@ fun HomeScreen(
 
     DisposableEffect(gyroscope) {
         val callback: (Float, Float, Float, Long) -> Unit = { x, y, z, nano ->
-            var gyro = Gyro( x, y, z, x, y, z, -1)
-            if (!polarGyroValues.isEmpty()){
-                Log.d("polarGyroValues", "First")
-                gyro = Gyro( x, y, z, (nano - sampleReferenceTime) / 1_000_000, lastGyro)
-                lastGyro = gyro
-            }else{
-                Log.d("polarGyroValues", "Second")
-                gyro = Gyro( 0F, 0F, 0F, polarAccValues.get(0).p, 0F, 0F, (nano - sampleReferenceTime) / 1_000_000)
-                lastGyro = gyro
+            val gyro: Gyro
+            if (!polarAccValues.isEmpty()) {
+                if (!polarGyroValues.isEmpty()) {
+                    Log.d("polarGyroValues", "First")
+                    gyro = Gyro(x, y, z, (nano - sampleReferenceTime) / 1_000_000, lastGyro)
+                    lastGyro = gyro
+                } else {
+                    Log.d("polarGyroValues", "Second")
+                    gyro = Gyro(
+                        0F,
+                        0F,
+                        0F,
+                        polarAccValues.get(0).p,
+                        0F,
+                        0F,
+                        (nano - sampleReferenceTime) / 1_000_000
+                    )
+                    lastGyro = gyro
+                }
+                synchronized(polarGyroValues) {
+                    polarGyroValues.add(gyro)
+                    Log.d(
+                        "polarGyroValues",
+                        "Added ${gyro.x}, ${gyro.y},${gyro.z}, ${gyro.ms} to polarGyroValues"
+                    )
+                }
             }
-            synchronized(polarGyroValues){
-                polarGyroValues.add(gyro)
-                Log.d("polarGyroValues", "Added ${gyro.x}, ${gyro.y},${gyro.z}, ${gyro.ms} to polarGyroValues")
-            }
-            // Update the UI with the new accelerometer values
-            gyroValues = "X: ${
-                String.format("%.3f", gyro.x).toFloat()
-            } Y: ${
-                String.format("%.3f", gyro.y).toFloat()
-            } Z: ${String.format("%.3f", gyro.z).toFloat()}\n" + "[ms]: ${gyro.ms}"
         }
 
         // Set the callback to be notified when accelerometer values change
@@ -205,26 +199,11 @@ fun HomeScreen(
                 synchronized(polarAccValues) {
                     if (!polarAccValues.isEmpty()) {
                         accSampleCount = polarAccValues.size
-                        val acc = polarAccValues.get(polarAccValues.size - 1)
-                        accelerometerValues = "X: ${
-                            String.format("%.3f", acc.x * 0.009806).toFloat()
-                        } Y: ${
-                            String.format("%.3f", acc.y * 0.009806).toFloat()
-                        } Z: ${String.format("%.3f", acc.z * 0.009806).toFloat()}\n" +
-                                "R: ${String.format("%.3f", acc.r).toFloat()}" +
-                                " P: ${String.format("%.3f", acc.p).toFloat()}\n" +
-                                "[ms]: ${acc.ms}"
                     }
                 }
                 synchronized(polarGyroValues) {
                     if (!polarGyroValues.isEmpty()) {
                         gyroSampleCount = polarGyroValues.size
-                        val gyro = polarGyroValues.get(polarGyroValues.size - 1)
-                        gyroValues = "X: ${
-                            String.format("%.3f", gyro.x).toFloat()
-                        } Y: ${
-                            String.format("%.3f", gyro.y).toFloat()
-                        } Z: ${String.format("%.3f", gyro.z).toFloat()}\n" + "[ms]: ${gyro.ms}"
                     }
                 }
                 synchronized(polarFusionValues){
@@ -930,14 +909,14 @@ fun HomeScreen(
 @Composable
 fun AccGraphX(polarAccValues: ArrayList<Acc>, recordWithBluetoothDevice: Boolean){
     if (!polarAccValues.isEmpty()) {
-        var indexIterate = 0
+        val indexIterate: Int
         if (recordWithBluetoothDevice){
             indexIterate = 10
         }else{
             indexIterate = 1
         }
         synchronized(polarAccValues) {
-            var pointsData = ArrayList<Point>()
+            val pointsData = ArrayList<Point>()
             for (index in 0 until indexIterate){
                 pointsData.add(Point(-0F, 8000F))
             }
@@ -1019,14 +998,14 @@ fun AccGraphX(polarAccValues: ArrayList<Acc>, recordWithBluetoothDevice: Boolean
 @Composable
 fun AccGraphY(polarAccValues: ArrayList<Acc>, recordWithBluetoothDevice: Boolean){
     if (!polarAccValues.isEmpty()) {
-        var indexIterate = 0
+        val indexIterate: Int
         if (recordWithBluetoothDevice){
             indexIterate = 10
         }else{
             indexIterate = 1
         }
         synchronized(polarAccValues) {
-            var pointsData = ArrayList<Point>()
+            val pointsData = ArrayList<Point>()
             for (index in 0 until indexIterate){
                 pointsData.add(Point(-0F, 8000F))
             }
@@ -1108,14 +1087,14 @@ fun AccGraphY(polarAccValues: ArrayList<Acc>, recordWithBluetoothDevice: Boolean
 @Composable
 fun AccGraphZ(polarAccValues: ArrayList<Acc>, recordWithBluetoothDevice: Boolean){
     if (!polarAccValues.isEmpty()) {
-        var indexIterate = 0
+        val indexIterate: Int
         if (recordWithBluetoothDevice){
             indexIterate = 10
         }else{
             indexIterate = 1
         }
         synchronized(polarAccValues) {
-            var pointsData = ArrayList<Point>()
+            val pointsData = ArrayList<Point>()
             for (index in 0 until indexIterate){
                 pointsData.add(Point(-0F, 8000F))
             }
@@ -1197,21 +1176,21 @@ fun AccGraphZ(polarAccValues: ArrayList<Acc>, recordWithBluetoothDevice: Boolean
 @Composable
 fun AccGraphPitch(polarAccValues: ArrayList<Acc>, recordWithBluetoothDevice: Boolean){
     if (!polarAccValues.isEmpty()) {
-        var indexIterate = 0
+        val indexIterate: Int
         if (recordWithBluetoothDevice){
             indexIterate = 10
         }else{
             indexIterate = 1
         }
         synchronized(polarAccValues) {
-            var pointsData = ArrayList<Point>()
+            val pointsData = ArrayList<Point>()
             for (index in 0 until indexIterate){
                 pointsData.add(Point(-0F, 90F))
             }
             pointsData.add(Point(-0F, -90F))
             for (i in 0 until polarAccValues.size step indexIterate) {
                 val acc = polarAccValues[i]
-                pointsData.add(Point((acc.ms / 1000.0).toFloat(), acc.p.toFloat()))
+                pointsData.add(Point((acc.ms / 1000.0).toFloat(), acc.p))
             }
 
             val xAxisData = AxisData.Builder()
@@ -1286,14 +1265,14 @@ fun AccGraphPitch(polarAccValues: ArrayList<Acc>, recordWithBluetoothDevice: Boo
 @Composable
 fun AccGraphRoll(polarAccValues: ArrayList<Acc>, recordWithBluetoothDevice: Boolean){
     if (!polarAccValues.isEmpty()) {
-        var indexIterate = 0
+        val indexIterate: Int
         if (recordWithBluetoothDevice){
             indexIterate = 10
         }else{
             indexIterate = 1
         }
         synchronized(polarAccValues) {
-            var pointsData = ArrayList<Point>()
+            val pointsData = ArrayList<Point>()
             for (index in 0 until indexIterate){
                 pointsData.add(Point(-0F, 180F))
             }
@@ -1375,7 +1354,7 @@ fun AccGraphRoll(polarAccValues: ArrayList<Acc>, recordWithBluetoothDevice: Bool
 @Composable
 fun GyroGraphX(polarGyroValues: ArrayList<Gyro>, recordWithBluetoothDevice: Boolean){
     if (!polarGyroValues.isEmpty()) {
-        var indexIterate = 0
+        val indexIterate: Int
         if (recordWithBluetoothDevice){
             indexIterate = 10
         }else{
