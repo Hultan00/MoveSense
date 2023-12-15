@@ -1,13 +1,13 @@
 package com.example.accmon.data
 
 class Gyro {
-    val x: Float
-    val y: Float
-    val z: Float
+    val x: Float // pitch/s
+    val y: Float // roll/s
+    val z: Float // yaw/s
 
-    val xa: Float
-    val ya: Float
-    val za: Float
+    val xa: Float // current pitch
+    val ya: Float // current roll
+    val za: Float // current yaw
 
     val ms: Long
 

@@ -549,7 +549,7 @@ fun HomeScreen(
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Text(
-                                        text = "Fusion-X [°/s]",
+                                        text = "SensorFusion-Pitch [°/s] (ALG 2)",
                                         style = MaterialTheme.typography.titleMedium,
                                         color = Color.White
                                     )
@@ -577,7 +577,7 @@ fun HomeScreen(
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Text(
-                                        text = "Pitch Angle [°∠]",
+                                        text = "Pitch Angle [°∠] (ALG 1)",
                                         style = MaterialTheme.typography.titleMedium,
                                         color = Color.White
                                     )
