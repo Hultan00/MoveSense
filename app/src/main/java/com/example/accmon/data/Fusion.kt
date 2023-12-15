@@ -2,7 +2,7 @@ package com.example.accmon.data
 
 import Acc
 
-class Fusion(acc: Acc, gyro: Gyro) {
+class Fusion(acc: Acc, gyro: Gyro, alpha: Float) {
     val p: Float
     val ms: Long
 
@@ -12,7 +12,7 @@ class Fusion(acc: Acc, gyro: Gyro) {
     }
 
     private fun complementaryFilter(accPitch: Float, gyroPitch: Float): Float {
-        val alpha = 0.7
+        val alpha = 0.2
         return (alpha * accPitch + (1 - alpha) * gyroPitch).toFloat()
     }
 }

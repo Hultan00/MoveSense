@@ -453,10 +453,11 @@ fun HomeScreen(
                 }
                 if(hasRecording) {
                     if (!isRecording && !hasExportedData) {
+                        Spacer(modifier = Modifier.height(10.dp))
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 10.dp),
+                                .padding(horizontal = 10.dp),
                             shape = RoundedCornerShape(10.dp), // Set the corner radius as needed
                             ) {
                             Column(
