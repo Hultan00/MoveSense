@@ -1,13 +1,12 @@
 package com.example.accmon.data
 
 import Acc
-import android.util.Log
 
-class Fusion {
+class Fusion(acc: Acc, gyro: Gyro) {
     val p: Float
     val ms: Long
 
-    constructor(acc: Acc, gyro: Gyro) {
+    init {
         this.p = complementaryFilter(acc.p, gyro.xa)
         this.ms = acc.ms
     }

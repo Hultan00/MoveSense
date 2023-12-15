@@ -11,11 +11,4 @@ class ConnectedDevice {
         bluetoothVariant = bluetoothDevice
         polarVariant = polarDeviceInfo
     }
-
-    fun getBluetooth(): BluetoothDevice? {
-        return bluetoothVariant
-    }
-    fun getPolar(): PolarDeviceInfo? {
-        return polarVariant
-    }
 }

@@ -2,6 +2,7 @@ package com.example.accmon.ui.viewmodels
 
 import Acc
 import BluetoothDeviceScanner
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
 import android.content.Context
 import android.util.Log
@@ -26,6 +27,7 @@ import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
+import kotlin.math.abs
 
 interface MoveSenseViewModel {
     val recordWithBluetoothDevice: StateFlow<Boolean>
@@ -88,7 +90,7 @@ class MoveSenseVM (
     override val numOfDiscoveredDevices: StateFlow<Int>
         get() = _numOfDiscoveredDevices
 
-    private val _connectedDevice = MutableStateFlow<ConnectedDevice>(ConnectedDevice())
+    private val _connectedDevice = MutableStateFlow(ConnectedDevice())
     override val connectedDevice: StateFlow<ConnectedDevice>
         get() = _connectedDevice
 
@@ -136,6 +138,7 @@ class MoveSenseVM (
         return bluetoothDeviceScanner
     }
 
+    @SuppressLint("CheckResult")
     override fun getPolarDevices(){
 
         val polarDevices = bluetoothDeviceScanner.api.searchForDevice()
@@ -168,9 +171,9 @@ class MoveSenseVM (
             _foundPolarDevices.value.clear()
             _isBluetoothSearching.value = true
             getPolarDevices()
-            var hashList = HashSet<BluetoothDevice>()
+            val hashList = HashSet<BluetoothDevice>()
             hashList.addAll(findBluetoothDevices())
-            var hashListRemove = HashSet<BluetoothDevice>()
+            val hashListRemove = HashSet<BluetoothDevice>()
             for (device in hashList){
                 if (device.name == null){
                     hashListRemove.add(device)
@@ -209,7 +212,7 @@ class MoveSenseVM (
         Log.d("Bluetooth", "Getting devices..")
         val deviceList = bluetoothDeviceScanner.getDiscoveredDevices()
 
-        Log.d("Bluetooth", "Devices: ${deviceList}")
+        Log.d("Bluetooth", "Devices: $deviceList")
 
         Log.d("Bluetooth", "Stopping discovery")
         bluetoothDeviceScanner.stopDiscovery()
@@ -223,11 +226,11 @@ class MoveSenseVM (
         Log.d("BluetoothConnect", "foundPolarDevices size: ${_foundPolarDevices.value.size}")
         for (bDevice in _foundBluetoothDevices.value){
             for (pDevice in _foundPolarDevices.value){
-                Log.d("BluetoothConnect", "Is ${pDevice} == ${bluetoothDevice.name}")
+                Log.d("BluetoothConnect", "Is $pDevice == ${bluetoothDevice.name}")
                 if(pDevice.name == bluetoothDevice.name){
                     bluetoothDeviceScanner.api.connectToDevice(pDevice.deviceId)
                     _connectedDevice.value.setConnectedDevice(bDevice, pDevice)
-                    Log.d("BluetoothConnect", "Connected to ${pDevice}")
+                    Log.d("BluetoothConnect", "Connected to $pDevice")
                     break
                 }
             }
@@ -255,7 +258,7 @@ class MoveSenseVM (
         _polarFusionValues.value.clear()
     }
 
-    fun getCurrentNanoTime(): Long{
+    fun getCurrentNanoTime(): Long {
         // Get the current LocalDateTime
         val localDateTime = LocalDateTime.now()
 
@@ -263,9 +266,8 @@ class MoveSenseVM (
         val epochDateTime = LocalDateTime.of(2000, 1, 1, 0, 0, 0)
 
         // Calculate the nanoseconds since the epoch
-        val nanoseconds = ChronoUnit.NANOS.between(epochDateTime, localDateTime)
 
-        return nanoseconds
+        return ChronoUnit.NANOS.between(epochDateTime, localDateTime)
     }
 
 
@@ -274,7 +276,7 @@ class MoveSenseVM (
         var minTimeDifference = Long.MAX_VALUE
 
         for (gyroValue in gyroValues) {
-            val timeDifference = Math.abs(gyroValue.ms - timestamp)
+            val timeDifference = abs(gyroValue.ms - timestamp)
 
             if (timeDifference < minTimeDifference) {
                 closestGyroValue = gyroValue
@@ -305,7 +307,7 @@ class MoveSenseVM (
                     .startGyroStreaming(polarVariant.deviceId, polarSensorSettingGyro)
                     .subscribe(
                         { gyroData ->
-                            if (!polarAccValues.value.isEmpty()) {
+                            if (polarAccValues.value.isNotEmpty()) {
                                 // This block is executed for each emitted accelerometer data
                                 // You can access accelerometer values from 'accelerometerData' here
                                 gyroData.samples.forEachIndexed { index, sample ->
@@ -459,7 +461,4 @@ class MoveSenseVM (
         }
     }
 
-    init {
-
-    }
 }

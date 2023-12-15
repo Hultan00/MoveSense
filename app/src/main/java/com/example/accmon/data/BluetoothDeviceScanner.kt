@@ -202,6 +202,5 @@ class BluetoothDeviceScanner(
         const val ACCESS_COARSE_LOCATION = Manifest.permission.ACCESS_COARSE_LOCATION
         const val ACCESS_FINE_LOCATION = Manifest.permission.ACCESS_FINE_LOCATION
         const val REQUEST_BLUETOOTH_PERMISSION = 123 // You can use any unique request code
-        private val MY_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
     }
 }

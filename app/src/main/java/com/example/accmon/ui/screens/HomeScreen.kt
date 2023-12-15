@@ -1,7 +1,7 @@
 package com.example.accmon.ui.screens
 
 import Acc
-import DataExport
+import com.example.accmon.data.DataExport
 import android.bluetooth.BluetoothDevice
 import android.graphics.Typeface
 import android.util.Log
@@ -64,7 +64,6 @@ import co.yml.charts.ui.linechart.model.SelectionHighlightPoint
 import co.yml.charts.ui.linechart.model.SelectionHighlightPopUp
 import co.yml.charts.ui.linechart.model.ShadowUnderLine
 import com.example.accmon.R
-import com.example.accmon.data.ConnectedDevice
 import com.example.accmon.data.Fusion
 import com.example.accmon.data.Gyro
 import com.example.accmon.ui.theme.AndroidGreen
@@ -114,7 +113,7 @@ fun HomeScreen(
     DisposableEffect(accelerometer) {
         val callback: (Float, Float, Float, Long) -> Unit = { x, y, z, nano ->
             val acc: Acc
-            if (!polarAccValues.isEmpty()){
+            if (polarAccValues.isNotEmpty()){
                 acc = Acc(((x / 9.806) * 1000).toInt(), ((y / 9.806) * 1000).toInt(), ((z / 9.806) * 1000).toInt(), (nano - sampleReferenceTime) / 1_000_000, lastAcc)
                 lastAcc = acc
             }else{
@@ -139,8 +138,8 @@ fun HomeScreen(
     DisposableEffect(gyroscope) {
         val callback: (Float, Float, Float, Long) -> Unit = { x, y, z, nano ->
             val gyro: Gyro
-            if (!polarAccValues.isEmpty()) {
-                if (!polarGyroValues.isEmpty()) {
+            if (polarAccValues.isNotEmpty()) {
+                if (polarGyroValues.isNotEmpty()) {
                     Log.d("polarGyroValues", "First")
                     gyro = Gyro(x, y, z, (nano - sampleReferenceTime) / 1_000_000, lastGyro)
                     lastGyro = gyro
@@ -197,12 +196,12 @@ fun HomeScreen(
 
             if (isRecording){
                 synchronized(polarAccValues) {
-                    if (!polarAccValues.isEmpty()) {
+                    if (polarAccValues.isNotEmpty()) {
                         accSampleCount = polarAccValues.size
                     }
                 }
                 synchronized(polarGyroValues) {
-                    if (!polarGyroValues.isEmpty()) {
+                    if (polarGyroValues.isNotEmpty()) {
                         gyroSampleCount = polarGyroValues.size
                     }
                 }
@@ -366,7 +365,7 @@ fun HomeScreen(
                             item {
                                 val device = discoveredDevices.get(index)
                                 if (device.name != null) {
-                                    BluetoothDeviceItem(vm, device, connectedDevice)
+                                    BluetoothDeviceItem(vm, device)
                                 }
                             }
                         }
@@ -908,7 +907,7 @@ fun HomeScreen(
 
 @Composable
 fun AccGraphX(polarAccValues: ArrayList<Acc>, recordWithBluetoothDevice: Boolean){
-    if (!polarAccValues.isEmpty()) {
+    if (polarAccValues.isNotEmpty()) {
         val indexIterate: Int
         if (recordWithBluetoothDevice){
             indexIterate = 10
@@ -997,7 +996,7 @@ fun AccGraphX(polarAccValues: ArrayList<Acc>, recordWithBluetoothDevice: Boolean
 
 @Composable
 fun AccGraphY(polarAccValues: ArrayList<Acc>, recordWithBluetoothDevice: Boolean){
-    if (!polarAccValues.isEmpty()) {
+    if (polarAccValues.isNotEmpty()) {
         val indexIterate: Int
         if (recordWithBluetoothDevice){
             indexIterate = 10
@@ -1086,7 +1085,7 @@ fun AccGraphY(polarAccValues: ArrayList<Acc>, recordWithBluetoothDevice: Boolean
 
 @Composable
 fun AccGraphZ(polarAccValues: ArrayList<Acc>, recordWithBluetoothDevice: Boolean){
-    if (!polarAccValues.isEmpty()) {
+    if (polarAccValues.isNotEmpty()) {
         val indexIterate: Int
         if (recordWithBluetoothDevice){
             indexIterate = 10
@@ -1175,7 +1174,7 @@ fun AccGraphZ(polarAccValues: ArrayList<Acc>, recordWithBluetoothDevice: Boolean
 
 @Composable
 fun AccGraphPitch(polarAccValues: ArrayList<Acc>, recordWithBluetoothDevice: Boolean){
-    if (!polarAccValues.isEmpty()) {
+    if (polarAccValues.isNotEmpty()) {
         val indexIterate: Int
         if (recordWithBluetoothDevice){
             indexIterate = 10
@@ -1264,7 +1263,7 @@ fun AccGraphPitch(polarAccValues: ArrayList<Acc>, recordWithBluetoothDevice: Boo
 
 @Composable
 fun AccGraphRoll(polarAccValues: ArrayList<Acc>, recordWithBluetoothDevice: Boolean){
-    if (!polarAccValues.isEmpty()) {
+    if (polarAccValues.isNotEmpty()) {
         val indexIterate: Int
         if (recordWithBluetoothDevice){
             indexIterate = 10
@@ -1353,7 +1352,7 @@ fun AccGraphRoll(polarAccValues: ArrayList<Acc>, recordWithBluetoothDevice: Bool
 
 @Composable
 fun GyroGraphX(polarGyroValues: ArrayList<Gyro>, recordWithBluetoothDevice: Boolean){
-    if (!polarGyroValues.isEmpty()) {
+    if (polarGyroValues.isNotEmpty()) {
         val indexIterate: Int
         if (recordWithBluetoothDevice){
             indexIterate = 10
@@ -1361,7 +1360,7 @@ fun GyroGraphX(polarGyroValues: ArrayList<Gyro>, recordWithBluetoothDevice: Bool
             indexIterate = 1
         }
         synchronized(polarGyroValues) {
-            var pointsData = ArrayList<Point>()
+            val pointsData = ArrayList<Point>()
             for (index in 0 until indexIterate){
                 pointsData.add(Point(0F, 2160F))
             }
@@ -1442,15 +1441,15 @@ fun GyroGraphX(polarGyroValues: ArrayList<Gyro>, recordWithBluetoothDevice: Bool
 
 @Composable
 fun GyroGraphY(polarGyroValues: ArrayList<Gyro>, recordWithBluetoothDevice: Boolean){
-    if (!polarGyroValues.isEmpty()) {
-        var indexIterate = 0
+    if (polarGyroValues.isNotEmpty()) {
+        val indexIterate: Int
         if (recordWithBluetoothDevice){
             indexIterate = 10
         }else{
             indexIterate = 1
         }
         synchronized(polarGyroValues) {
-            var pointsData = ArrayList<Point>()
+            val pointsData = ArrayList<Point>()
             for (index in 0 until indexIterate){
                 pointsData.add(Point(0F, 2160F))
             }
@@ -1531,15 +1530,15 @@ fun GyroGraphY(polarGyroValues: ArrayList<Gyro>, recordWithBluetoothDevice: Bool
 
 @Composable
 fun GyroGraphZ(polarGyroValues: ArrayList<Gyro>, recordWithBluetoothDevice: Boolean){
-    if (!polarGyroValues.isEmpty()) {
-        var indexIterate = 0
+    if (polarGyroValues.isNotEmpty()) {
+        val indexIterate: Int
         if (recordWithBluetoothDevice){
             indexIterate = 10
         }else{
             indexIterate = 1
         }
         synchronized(polarGyroValues) {
-            var pointsData = ArrayList<Point>()
+            val pointsData = ArrayList<Point>()
             for (index in 0 until indexIterate){
                 pointsData.add(Point(0F, 2160F))
             }
@@ -1620,15 +1619,15 @@ fun GyroGraphZ(polarGyroValues: ArrayList<Gyro>, recordWithBluetoothDevice: Bool
 
 @Composable
 fun FusionGraphX(polarFusionValues: ArrayList<Fusion>, recordWithBluetoothDevice: Boolean){
-    if (!polarFusionValues.isEmpty()) {
-        var indexIterate = 0
+    if (polarFusionValues.isNotEmpty()) {
+        val indexIterate: Int
         if (recordWithBluetoothDevice){
             indexIterate = 10
         }else{
             indexIterate = 1
         }
         synchronized(polarFusionValues) {
-            var pointsData = ArrayList<Point>()
+            val pointsData = ArrayList<Point>()
             for (index in 0 until indexIterate){
                 pointsData.add(Point(-0F, 90F))
             }
@@ -1708,11 +1707,11 @@ fun FusionGraphX(polarFusionValues: ArrayList<Fusion>, recordWithBluetoothDevice
 }
 
 @Composable
-fun BluetoothDeviceItem(vm: MoveSenseVM, bluetoothDevice: BluetoothDevice, connectedDevice: ConnectedDevice) {
-    var textcolor = Color.Gray
+fun BluetoothDeviceItem(vm: MoveSenseVM, bluetoothDevice: BluetoothDevice) {
+    var textColor = Color.Gray
     for (pDevice in vm.foundPolarDevices.value){
         if (bluetoothDevice.name == pDevice.name){
-            textcolor = StyleBlue
+            textColor = StyleBlue
             break
         }
     }
@@ -1735,12 +1734,12 @@ fun BluetoothDeviceItem(vm: MoveSenseVM, bluetoothDevice: BluetoothDevice, conne
             Text(
                 text = bluetoothDevice.name,
                 style = MaterialTheme.typography.titleMedium,
-                color = if (textcolor.equals(Color.Gray)) textcolor else Color.White
+                color = if (textColor == Color.Gray) textColor else Color.White
             )
             Text(
-                text = if (textcolor.equals(Color.Gray)) "Not Compatible" else "COMPATIBLE",
+                text = if (textColor == Color.Gray) "Not Compatible" else "COMPATIBLE",
                 style = MaterialTheme.typography.titleMedium,
-                color = textcolor
+                color = textColor
             )
         }
     }

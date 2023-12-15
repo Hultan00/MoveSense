@@ -1,6 +1,7 @@
+package com.example.accmon.data
+
+import Acc
 import android.os.Environment
-import com.example.accmon.data.Fusion
-import com.example.accmon.data.Gyro
 import java.io.File
 import java.io.FileWriter
 import java.time.LocalDateTime
@@ -17,33 +18,33 @@ class DataExport {
         }
 
         fun formatFusionData(fusionData: ArrayList<Fusion>): ArrayList<String>{
-            var formatedList = ArrayList<String>()
+            val formattedList = ArrayList<String>()
             for (data in fusionData){
                 var string = data.ms.toString() + ","
                 string += data.p.toString()
-                formatedList.add(string)
+                formattedList.add(string)
             }
-            return formatedList
+            return formattedList
         }
 
         fun formatAccData(fusionData: ArrayList<Acc>): ArrayList<String>{
-            var formatedList = ArrayList<String>()
+            val formattedList = ArrayList<String>()
             for (data in fusionData){
                 var string = data.ms.toString() + ","
                 string += data.p.toString()
-                formatedList.add(string)
+                formattedList.add(string)
             }
-            return formatedList
+            return formattedList
         }
 
         fun formatGyroData(fusionData: ArrayList<Gyro>): ArrayList<String>{
-            var formatedList = ArrayList<String>()
+            val formattedList = ArrayList<String>()
             for (data in fusionData){
                 var string = data.ms.toString() + ","
                 string += data.xa.toString()
-                formatedList.add(string)
+                formattedList.add(string)
             }
-            return formatedList
+            return formattedList
         }
 
         fun exportToCsv(data: ArrayList<String>, filePath: String) {

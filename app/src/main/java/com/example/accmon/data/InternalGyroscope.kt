@@ -5,12 +5,8 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import android.os.Build
-import androidx.annotation.RequiresApi
 import java.time.LocalDateTime
-import java.time.ZoneId
 import java.time.temporal.ChronoUnit
-import java.util.concurrent.TimeUnit
 
 
 class InternalGyroscope(private val context: Context) : SensorEventListener {
@@ -50,7 +46,6 @@ class InternalGyroscope(private val context: Context) : SensorEventListener {
         onSensorChangedCallback = callback
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
     override fun onSensorChanged(event: SensorEvent) {
         if (event.sensor.type == Sensor.TYPE_GYROSCOPE) {
             val x = event.values[0]
