@@ -34,6 +34,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -106,6 +107,7 @@ fun HomeScreen(
     var lastAcc = Acc(0,0,0,-1)
     var lastGyro = Gyro(0F,0F,0F, 0F, 0F, 0F, -1)
     var recordingTime by remember { mutableIntStateOf(0) }
+    var alphaFusion by remember { mutableIntStateOf(5) }
 
     val maxRecordingTimeMs = 20 * 1000
 
@@ -214,7 +216,7 @@ fun HomeScreen(
                                 val closestGyroValue = vm.findClosestGyroValue(accValue.ms, polarGyroValues)
 
                                 if (closestGyroValue != null) {
-                                    polarFusionValues.add(Fusion(accValue, closestGyroValue))
+                                    polarFusionValues.add(Fusion(accValue, closestGyroValue, alphaFusion/10F))
                                     Log.d(
                                         "polarFusionValues",
                                         "Added (${accValue.ms}) ${accValue.p}, (${closestGyroValue.ms}) ${closestGyroValue.x} to polarFusionValues"
@@ -783,7 +785,8 @@ fun HomeScreen(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(15.dp),) {
+                            .padding(15.dp)
+                    ) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -810,6 +813,54 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.Top,
                 horizontalAlignment = Alignment.CenterHorizontally,
             ){
+                if(!hasRecording){
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 10.dp),
+                        shape = RoundedCornerShape(10.dp), // Set the corner radius as needed
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    color = Color.DarkGray,
+                                    shape = RoundedCornerShape(10.dp)
+                                ),
+                            verticalArrangement = Arrangement.Top,
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Button(
+                                onClick = {
+                                    alphaFusion -= 1
+                                    if (alphaFusion < 0){
+                                        alphaFusion = 10
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color.DarkGray,
+                                ),
+                                modifier = Modifier
+                                    .border(
+                                        1.dp,
+                                        ThemeBlack,
+                                        shape = RoundedCornerShape(10.dp)
+                                    )
+                                    .fillMaxWidth()
+                                    .background(Color.Gray, RoundedCornerShape(10.dp)),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Text(
+                                    text = "Alg2-Alpha = ${String.format("%.1f", (alphaFusion/10F))}",
+                                    fontSize = 30.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Default,
+                                    color = StyleBlue
+                                )
+                            }
+                        }
+                    }
+                }
                 Row (
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1193,9 +1244,9 @@ fun AccGraphPitch(polarAccValues: ArrayList<Acc>, recordWithBluetoothDevice: Boo
         synchronized(polarAccValues) {
             val pointsData = ArrayList<Point>()
             for (index in 0 until indexIterate){
-                pointsData.add(Point(-0F, 90F))
+                pointsData.add(Point(-0F, 135F))
             }
-            pointsData.add(Point(-0F, -90F))
+            pointsData.add(Point(-0F, -135F))
             for (i in 0 until polarAccValues.size step indexIterate) {
                 val acc = polarAccValues[i]
                 pointsData.add(Point((acc.ms / 1000.0).toFloat(), acc.p))
@@ -1211,7 +1262,7 @@ fun AccGraphPitch(polarAccValues: ArrayList<Acc>, recordWithBluetoothDevice: Boo
 
 
             val stepSize = 22.5
-            val steps = 4
+            val steps = 6
 
             val yAxisData = AxisData.Builder()
                 .steps(steps * 2)  // Include zero as well
@@ -1638,9 +1689,9 @@ fun FusionGraphX(polarFusionValues: ArrayList<Fusion>, recordWithBluetoothDevice
         synchronized(polarFusionValues) {
             val pointsData = ArrayList<Point>()
             for (index in 0 until indexIterate){
-                pointsData.add(Point(-0F, 90F))
+                pointsData.add(Point(-0F, 135F))
             }
-            pointsData.add(Point(-0F, -90F))
+            pointsData.add(Point(-0F, -135F))
             for (i in 0 until polarFusionValues.size step indexIterate) {
                 val fusion = polarFusionValues[i]
                 pointsData.add(Point((fusion.ms / 1000.0).toFloat(), fusion.p))
@@ -1656,7 +1707,7 @@ fun FusionGraphX(polarFusionValues: ArrayList<Fusion>, recordWithBluetoothDevice
 
 
             val stepSize = 22.5
-            val steps = 4
+            val steps = 6
 
             val yAxisData = AxisData.Builder()
                 .steps(steps * 2)  // Include zero as well
