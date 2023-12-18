@@ -266,7 +266,6 @@ class MoveSenseVM (
         val epochDateTime = LocalDateTime.of(2000, 1, 1, 0, 0, 0)
 
         // Calculate the nanoseconds since the epoch
-
         return ChronoUnit.NANOS.between(epochDateTime, localDateTime)
     }
 
@@ -284,7 +283,7 @@ class MoveSenseVM (
             }
         }
 
-        if(minTimeDifference > 10){
+        if(minTimeDifference > 25){
             return null
         }
         return closestGyroValue

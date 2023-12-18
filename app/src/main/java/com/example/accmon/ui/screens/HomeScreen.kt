@@ -124,7 +124,7 @@ fun HomeScreen(
             }
             synchronized(polarAccValues) {
                 polarAccValues.add(acc)
-                Log.d("polarAccValues", "Added ${acc.x}, ${acc.y}, ${acc.z}, ${acc.p}, ${acc.r}, ${acc.ms} to polarAccValues")
+                Log.d("polarAccValues",  "Added ${acc.x}, ${acc.y}, ${acc.z}, ${acc.p}, ${acc.r}, ${acc.ms} to polarAccValues")
             }
         }
 
